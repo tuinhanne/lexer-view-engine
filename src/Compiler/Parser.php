@@ -209,6 +209,7 @@ final class Parser
 
     private function handleElseIf(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $idx = $this->requireTopFrame('if', $token);
 
         $this->stack[$idx]['extras']['branches'][] = [
@@ -224,6 +225,7 @@ final class Parser
 
     private function handleElse(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $idx = $this->requireTopFrame('if', $token);
 
         $this->stack[$idx]['extras']['branches'][] = [
@@ -238,6 +240,7 @@ final class Parser
 
     private function handleEndIf(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $this->requireTopFrame('if', $token);
 
         $frame         = array_pop($this->stack);
@@ -298,6 +301,7 @@ final class Parser
 
     private function handleEndForeach(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $this->requireTopFrame('foreach', $token);
         $frame = array_pop($this->stack);
         $this->addNode(new ForEachNode($frame['extras']['expression'], $frame['children']));
@@ -322,6 +326,7 @@ final class Parser
 
     private function handleEndFor(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $this->requireTopFrame('for', $token);
         $frame = array_pop($this->stack);
         $this->addNode(new ForNode($frame['extras']['expression'], $frame['children'], $frame['extras']['line']));
@@ -346,6 +351,7 @@ final class Parser
 
     private function handleEndWhile(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $this->requireTopFrame('while', $token);
         $frame = array_pop($this->stack);
         $this->addNode(new WhileNode($frame['extras']['condition'], $frame['children']));
@@ -370,6 +376,7 @@ final class Parser
 
     private function handleEndUnless(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $this->requireTopFrame('unless', $token);
         $frame = array_pop($this->stack);
         $this->addNode(new UnlessNode($frame['extras']['condition'], $frame['children'], $frame['extras']['line']));
@@ -394,6 +401,7 @@ final class Parser
 
     private function handleEndIsset(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $this->requireTopFrame('isset', $token);
         $frame = array_pop($this->stack);
         $this->addNode(new IssetNode($frame['extras']['expression'], $frame['children'], $frame['extras']['line']));
@@ -418,6 +426,7 @@ final class Parser
 
     private function handleEndEmpty(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $this->requireTopFrame('empty_check', $token);
         $frame = array_pop($this->stack);
         $this->addNode(new CheckEmptyNode($frame['extras']['expression'], $frame['children'], $frame['extras']['line']));
@@ -445,6 +454,7 @@ final class Parser
 
     private function handleCase(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $idx = $this->requireTopFrame('switch', $token);
 
         if ($this->stack[$idx]['extras']['in_case']) {
@@ -461,6 +471,7 @@ final class Parser
 
     private function handleDefault(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $idx = $this->requireTopFrame('switch', $token);
 
         if ($this->stack[$idx]['extras']['in_case']) {
@@ -477,6 +488,7 @@ final class Parser
 
     private function handleEndSwitch(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $this->requireTopFrame('switch', $token);
         $frame = array_pop($this->stack);
 
@@ -529,6 +541,7 @@ final class Parser
 
     private function handleEndSection(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $this->requireTopFrame('section', $token);
         $frame = array_pop($this->stack);
         $this->addNode(new SectionNode($frame['extras']['name'], $frame['children']));
@@ -665,6 +678,7 @@ final class Parser
 
     private function popComponentFrame(Token $token): void
     {
+        $this->autoClosePushBlocks();
         $closeName = $token->name ?? '';
         $topFrame  = end($this->stack);
 
@@ -694,6 +708,22 @@ final class Parser
     private function addNode(Node $node): void
     {
         $this->stack[count($this->stack) - 1]['children'][] = $node;
+    }
+
+    /**
+     * Auto-close any #push blocks sitting on top of the stack.
+     *
+     * #push is a "transparent" block — it is orthogonal to all structural
+     * blocks (if, foreach, section, components, …) and may be left unclosed
+     * when the enclosing block ends.  Every end-block handler calls this
+     * before checking its own frame so that #push never blocks an outer close.
+     */
+    private function autoClosePushBlocks(): void
+    {
+        while (!empty($this->stack) && end($this->stack)['type'] === 'push') {
+            $frame = array_pop($this->stack);
+            $this->addNode(new PushNode($frame['extras']['name'], $frame['children'], $frame['extras']['line']));
+        }
     }
 
     /**
