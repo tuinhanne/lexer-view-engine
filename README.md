@@ -432,7 +432,7 @@ Place `lex.config.json` at the project root. All paths may be relative (resolved
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `viewPaths` | `string[]` | `["views","resources/views"]` | Directories scanned for `.lex` templates |
-| `componentPaths` | `string[]` | `[]` | Narrower subset scanned first for component lookup |
+| `componentPaths` | `string[]` | `[]` | Extra component directories. The `components/` subfolder of every `viewPath` is **auto-registered** — only needed for non-standard locations |
 | `cache` | `string` | `"cache/views"` | Compiled-file cache directory |
 | `extension` | `string` | `"lex"` | Template file extension |
 | `production` | `bool` | `false` | Enable production mode on startup |
@@ -473,8 +473,8 @@ $lexer = (new Lexer())
     // Component class namespace
     ->componentClassNamespace('App\\View\\Components')
 
-    // Component view paths (separate from main view paths)
-    ->componentPath(__DIR__ . '/views/components')
+    // Extra component directories (optional — `{viewPath}/components` is auto-registered)
+    // ->componentPath(__DIR__ . '/views/ui')
 
     // Custom directives
     ->directive('money', fn($e) => "<?php echo number_format({$e}, 2); ?>")

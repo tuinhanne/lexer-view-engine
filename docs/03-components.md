@@ -10,20 +10,38 @@ Each component is itself a `.lex` template that receives **props** and optional 
 Wik/Lexer resolves component tags to `.lex` files using these rules (in order):
 
 1. **Explicit map** — registered with `$lexer->component('Name', '/path/to/file.lex')`
-2. **Auto-discovery** — searches `componentPath` directories for a matching file name
+2. **Auto-discovery** — searches component directories for a matching file name
 
-For auto-discovery the tag name is converted to kebab-case:
+### Auto-discovery convention (zero config)
+
+The `components/` subdirectory inside **every configured view path** is registered
+automatically — no call to `componentPath()` is needed:
+
+```
+views/
+├── home.lex
+└── components/          ← discovered automatically
+    ├── card.lex
+    └── button-component.lex
+```
+
+The tag name is converted to kebab-case to find the file:
 
 | Tag | File looked up |
 |---|---|
 | `<Card />` | `card.lex` or `Card.lex` |
 | `<UserProfile />` | `user-profile.lex` or `UserProfile.lex` |
+| `<button-component />` | `button-component.lex` |
 | `<alert />` | `alert.lex` |
 
-```php
-$lexer->componentPath(__DIR__ . '/views/components');
+### Extra component directories
 
-// Or register explicitly:
+If your components live somewhere other than `{viewPath}/components`, register additional directories explicitly:
+
+```php
+$lexer->componentPath(__DIR__ . '/views/ui');
+
+// Or register a single component by name:
 $lexer->component('Alert', __DIR__ . '/views/components/alert.lex');
 ```
 

@@ -365,6 +365,16 @@ final class Lexer
         // mtime-based cache keys — ViewEngine delegates all lookups to it.
         $loader = new FileLoader($this->viewPaths, $this->extension);
 
+        // Convention: auto-register the `components` subdirectory of every view
+        // path so components are discovered without any extra configuration.
+        // Explicitly registered paths (via componentPath()) always take priority
+        // because they are added first; addComponentPath() deduplicates entries.
+        foreach ($this->viewPaths as $viewPath) {
+            $this->componentManager->addComponentPath(
+                rtrim($viewPath, '/\\') . DIRECTORY_SEPARATOR . 'components'
+            );
+        }
+
         return new ViewEngine($compiler, $this->sectionManager, $this->componentManager, $loader, $this->escaper);
     }
 

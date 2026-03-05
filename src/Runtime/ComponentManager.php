@@ -78,7 +78,11 @@ final class ComponentManager
 
     public function addComponentPath(string $path): void
     {
-        $this->componentPaths[] = rtrim($path, '/\\');
+        $normalized = rtrim($path, '/\\');
+
+        if (!in_array($normalized, $this->componentPaths, true)) {
+            $this->componentPaths[] = $normalized;
+        }
     }
 
     public function registerComponent(string $name, string $viewPath): void
