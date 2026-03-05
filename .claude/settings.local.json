@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xxd \"c:/Users/tuinh/Desktop/lexer/src/Support/DirectiveRegistry.php\")",
+      "Bash(python3 -c \":*)"
+    ]
+  }
+}
