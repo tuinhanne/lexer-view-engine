@@ -25,13 +25,28 @@ final class EchoNode extends Node
 
     public function compile(): string
     {
+        $expr = $this->normalizeExpression($this->expression);
+
         if ($this->raw) {
-            return '<?php echo ' . $this->expression . '; ?>';
+            return '<?php echo ' . $expr . '; ?>';
         }
 
         // Route through the per-render escaper so custom EscaperInterface
         // implementations are respected at runtime.
-        return '<?php echo $__env->escape(' . $this->expression . '); ?>';
+        return '<?php echo $__env->escape(' . $expr . '); ?>';
+    }
+
+    /**
+     * Auto-prefix bare identifiers with `$` so that `{{ title }}` compiles
+     * the same as `{{ $title }}` instead of being treated as a PHP constant.
+     */
+    private function normalizeExpression(string $expr): string
+    {
+        if (preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $expr)) {
+            return '$' . $expr;
+        }
+
+        return $expr;
     }
 
     public function getLine(): int

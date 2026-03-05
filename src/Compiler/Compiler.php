@@ -294,6 +294,11 @@ final class Compiler
      */
     private function saveAst(string $path, array $nodes): void
     {
+        $dir = dirname($path);
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return;
+        }
+
         $data = function_exists('igbinary_serialize')
             ? igbinary_serialize($nodes)
             : serialize($nodes);
