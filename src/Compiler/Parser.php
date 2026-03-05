@@ -705,6 +705,19 @@ final class Parser
         $topFrame = $this->stack[$idx];
 
         if ($topFrame['type'] !== $expectedType) {
+            // Search deeper in the stack: if the expected frame exists somewhere
+            // below, it means an intermediate block was opened but never closed.
+            for ($i = $idx - 1; $i >= 0; $i--) {
+                if ($this->stack[$i]['type'] === $expectedType) {
+                    throw ParseException::unclosedBlockBeforeEnd(
+                        $topFrame['type'],
+                        $topFrame['extras']['line'] ?? 0,
+                        $token->name ?? '',
+                        $token->line,
+                    );
+                }
+            }
+
             throw ParseException::unexpectedDirective($token->name ?? '', $token->line);
         }
 

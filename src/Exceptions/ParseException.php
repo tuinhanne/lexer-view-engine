@@ -32,4 +32,16 @@ class ParseException extends LexException
     {
         return new self("Unknown directive #{$name} on line {$line}. Register it via \$lexer->directive().");
     }
+
+    public static function unclosedBlockBeforeEnd(
+        string $blockType,
+        int $blockLine,
+        string $closingName,
+        int $closingLine,
+    ): self {
+        return new self(
+            "Unclosed #{$blockType} block (opened on line {$blockLine}) "
+            . "must be closed before #{$closingName} on line {$closingLine}."
+        );
+    }
 }
