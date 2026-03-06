@@ -367,7 +367,6 @@ $path = LexConfig::find('/path/to/project');   // string|null
 
 // Inspect loaded values
 $config->viewPaths;       // string[]
-$config->componentPaths;  // string[]
 $config->cache;           // string (absolute)
 $config->extension;       // string
 $config->production;      // bool

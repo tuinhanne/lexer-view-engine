@@ -15,7 +15,7 @@ Wik/Lexer resolves component tags to `.lex` files using these rules (in order):
 ### Auto-discovery convention (zero config)
 
 The `components/` subdirectory inside **every configured view path** is registered
-automatically — no call to `componentPath()` is needed:
+automatically:
 
 ```
 views/
@@ -34,14 +34,9 @@ The tag name is converted to kebab-case to find the file:
 | `<button-component />` | `button-component.lex` |
 | `<alert />` | `alert.lex` |
 
-### Extra component directories
-
-If your components live somewhere other than `{viewPath}/components`, register additional directories explicitly:
+### Registering a single component explicitly
 
 ```php
-$lexer->componentPath(__DIR__ . '/views/ui');
-
-// Or register a single component by name:
 $lexer->component('Alert', __DIR__ . '/views/components/alert.lex');
 ```
 

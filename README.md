@@ -54,12 +54,11 @@ Creates `lex.config.json` in the project root (and `.vscode/settings.json` for t
 
 ```json
 {
-  "viewPaths":      ["views", "resources/views"],
-  "componentPaths": ["views/components"],
-  "cache":          "cache/views",
-  "extension":      "lex",
-  "production":     false,
-  "sandbox":        false
+  "viewPaths":  ["views", "resources/views"],
+  "cache":      "cache/views",
+  "extension":  "lex",
+  "production": false,
+  "sandbox":    false
 }
 ```
 
@@ -115,6 +114,16 @@ HTML comments are **stripped at lex time** — they never appear in compiled out
 ```
 <!-- This comment will not appear in the rendered HTML -->
 ```
+
+### Escaping `#`
+
+Prefix `#` with a backslash to output it literally without triggering a directive:
+
+```
+<code>\#truncate($text, 60)</code>  {{-- renders: #truncate($text, 60) --}}
+```
+
+Only `\#` followed by a letter is treated as an escape; `\#123` or standalone `\` are output as-is.
 
 ---
 
@@ -420,19 +429,17 @@ Place `lex.config.json` at the project root. All paths may be relative (resolved
 
 ```json
 {
-  "viewPaths":      ["views", "resources/views"],
-  "componentPaths": ["views/components"],
-  "cache":          "cache/views",
-  "extension":      "lex",
-  "production":     false,
-  "sandbox":        false
+  "viewPaths":  ["views", "resources/views"],
+  "cache":      "cache/views",
+  "extension":  "lex",
+  "production": false,
+  "sandbox":    false
 }
 ```
 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `viewPaths` | `string[]` | `["views","resources/views"]` | Directories scanned for `.lex` templates |
-| `componentPaths` | `string[]` | `[]` | Extra component directories. The `components/` subfolder of every `viewPath` is **auto-registered** — only needed for non-standard locations |
 | `cache` | `string` | `"cache/views"` | Compiled-file cache directory |
 | `extension` | `string` | `"lex"` | Template file extension |
 | `production` | `bool` | `false` | Enable production mode on startup |
@@ -472,9 +479,6 @@ $lexer = (new Lexer())
 
     // Component class namespace
     ->componentClassNamespace('App\\View\\Components')
-
-    // Extra component directories (optional — `{viewPath}/components` is auto-registered)
-    // ->componentPath(__DIR__ . '/views/ui')
 
     // Custom directives
     ->directive('money', fn($e) => "<?php echo number_format({$e}, 2); ?>")

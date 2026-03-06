@@ -98,10 +98,6 @@ final class Lexer
             $lexer->enableSandbox();
         }
 
-        foreach ($config->componentPaths as $path) {
-            $lexer->componentPath($path);
-        }
-
         return $lexer;
     }
 
@@ -191,19 +187,6 @@ final class Lexer
     public function component(string $name, string $viewPath): static
     {
         $this->componentManager->registerComponent($name, $viewPath);
-
-        return $this;
-    }
-
-    /**
-     * Add a directory to search for component files.
-     *
-     * Components are located by converting the tag name to kebab-case:
-     *   <UserProfile /> → {dir}/user-profile.lex  (also tries UserProfile.lex)
-     */
-    public function componentPath(string $path): static
-    {
-        $this->componentManager->addComponentPath($path);
 
         return $this;
     }

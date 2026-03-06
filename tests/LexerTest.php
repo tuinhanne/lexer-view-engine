@@ -106,6 +106,26 @@ final class LexerTest extends TestCase
     // Directive tokens
     // -----------------------------------------------------------------------
 
+    public function testEscapedDirectiveIsOutputAsLiteralText(): void
+    {
+        $tokens = $this->lexer->tokenize('\#truncate($text, 60)');
+
+        $this->assertCount(1, $tokens);
+        $this->assertSame(Token::T_TEXT, $tokens[0]->type);
+        $this->assertSame('#truncate($text, 60)', $tokens[0]->value);
+    }
+
+    public function testEscapedDirectiveInsideMixedContent(): void
+    {
+        $tokens = $this->lexer->tokenize('<code>\#if($x)</code>');
+
+        $types = array_column($tokens, 'type');
+        $this->assertNotContains(Token::T_DIRECTIVE, $types);
+
+        $combined = implode('', array_column($tokens, 'value'));
+        $this->assertStringContainsString('#if($x)', $combined);
+    }
+
     public function testIfDirectiveTokenIsProduced(): void
     {
         $tokens = $this->lexer->tokenize('#if ($x > 0):');

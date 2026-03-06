@@ -89,12 +89,11 @@ final class InitCommand extends Command
 
         // ── Write lex.config.json ─────────────────────────────────────────────
         $config = [
-            'viewPaths'      => $viewPaths,
-            'componentPaths' => [],
-            'cache'          => $cache,
-            'extension'      => ltrim($extension, '.'),
-            'production'     => false,
-            'sandbox'        => false,
+            'viewPaths'  => $viewPaths,
+            'cache'      => $cache,
+            'extension'  => ltrim($extension, '.'),
+            'production' => false,
+            'sandbox'    => false,
         ];
 
         $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

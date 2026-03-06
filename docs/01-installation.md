@@ -31,9 +31,6 @@ Example `lex.config.json`:
 }
 ```
 
-> The `components/` subfolder of every `viewPath` is registered automatically.
-> You only need `"componentPaths"` when components live in a non-standard location.
-
 Then use the config-file factory in your PHP code:
 
 ```php
@@ -84,7 +81,6 @@ The config file is searched by **walking up** from the current working directory
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `viewPaths` | `string[]` | `["views","resources/views"]` | Directories scanned for `.lex` templates. Relative paths are resolved from the config file's directory. |
-| `componentPaths` | `string[]` | `[]` | Extra directories scanned for component files. The `components/` subfolder of every `viewPath` is **always registered automatically** — only set this when components live elsewhere. |
 | `cache` | `string` | `"cache/views"` | Compiled-file cache directory. |
 | `extension` | `string` | `"lex"` | Template file extension (without the dot). |
 | `production` | `bool` | `false` | Enable production mode (precompiled index, skip source I/O). |
@@ -107,7 +103,6 @@ The same file is read by the [Lex LSP extension](../lex-language-server/) for co
 | `enableSandbox(?SandboxConfig $cfg)` | Enable sandbox mode |
 | `directive(string $name, callable $fn)` | Register a custom directive |
 | `component(string $name, string $file)` | Map a component tag to a view file |
-| `componentPath(string $dir)` | Add an extra component directory (`{viewPath}/components` is always auto-registered) |
 | `componentClassNamespace(string $ns)` | Namespace prefix for component classes |
 | `setEscaper(EscaperInterface $e)` | Override the HTML escaper |
 | `render(string $name, array $data)` | Render a template by name and return HTML |
@@ -142,8 +137,6 @@ my-project/
 $this->app->singleton(Lexer::class, fn() => Lexer::fromConfig());
 
 // Option B: manual configuration
-// The `components/` subfolder of every view path is registered automatically,
-// so ->componentPath() is only needed for non-standard locations.
 $this->app->singleton(Lexer::class, function () {
     return (new Lexer())
         ->paths([resource_path('views')])   // views/components/ is auto-registered

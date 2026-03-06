@@ -157,6 +157,28 @@ $lexer->directive('myDirective', function (string $expr): string {
 
 ---
 
+## Escaping the `#` Character
+
+Use `\#` to output a literal `#` character without triggering directive parsing:
+
+```
+<code>\#truncate($text, 60)</code>
+```
+
+Renders as:
+
+```html
+<code>#truncate($text, 60)</code>
+```
+
+This is useful when documenting directive syntax inside templates, or when `#` appears in
+code examples, Markdown headings, or any context where it should not be interpreted as a directive.
+
+> **Note:** Only `\#` followed immediately by a letter triggers the escape.
+> A standalone `\` or `\#123` (digit after `#`) is output as-is.
+
+---
+
 ## Important Notes
 
 - Directives without parentheses (`#else`, `#break`) receive `null` as `$expression`.

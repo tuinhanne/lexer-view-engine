@@ -16,7 +16,6 @@ use Wik\Lexer\Exceptions\LexException;
  * Supported fields
  * ────────────────
  * viewPaths        string[]   Directories to search for .lex templates
- * componentPaths   string[]   Narrower subset scanned first for components
  * cache            string     Directory for compiled PHP / AST cache
  * extension        string     Template file extension (default: "lex")
  * production       bool       Enable production / index-build mode
@@ -28,9 +27,8 @@ use Wik\Lexer\Exceptions\LexException;
  * Example lex.config.json
  * ───────────────────────
  * {
- *   "viewPaths":      ["views", "resources/views"],
- *   "componentPaths": ["views/components"],
- *   "cache":          "cache/views",
+ *   "viewPaths": ["views", "resources/views"],
+ *   "cache":     "cache/views",
  *   "extension":      "lex",
  *   "production":     false,
  *   "sandbox":        false
@@ -52,9 +50,6 @@ final class LexConfig
     /** @var string[] */
     public readonly array $viewPaths;
 
-    /** @var string[] */
-    public readonly array $componentPaths;
-
     public readonly string $cache;
     public readonly string $extension;
     public readonly bool   $production;
@@ -68,7 +63,6 @@ final class LexConfig
 
     private function __construct(
         array  $viewPaths,
-        array  $componentPaths,
         string $cache,
         string $extension,
         bool   $production,
@@ -76,7 +70,6 @@ final class LexConfig
         string $configFilePath,
     ) {
         $this->viewPaths      = $viewPaths;
-        $this->componentPaths = $componentPaths;
         $this->cache          = $cache;
         $this->extension      = $extension;
         $this->production     = $production;
@@ -132,9 +125,8 @@ final class LexConfig
         $dir = dirname(realpath($filePath) ?: $filePath);
 
         return new self(
-            viewPaths:      self::resolvePaths($data['viewPaths']      ?? self::DEFAULT_VIEW_PATHS,  $dir),
-            componentPaths: self::resolvePaths($data['componentPaths'] ?? [],                        $dir),
-            cache:          self::resolvePath($data['cache']           ?? self::DEFAULT_CACHE_PATH,  $dir),
+            viewPaths: self::resolvePaths($data['viewPaths'] ?? self::DEFAULT_VIEW_PATHS, $dir),
+            cache:     self::resolvePath($data['cache']      ?? self::DEFAULT_CACHE_PATH, $dir),
             extension:      self::str($data['extension'] ?? self::DEFAULT_EXTENSION),
             production:     (bool) ($data['production'] ?? false),
             sandbox:        (bool) ($data['sandbox']    ?? false),
