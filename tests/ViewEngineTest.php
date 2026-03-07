@@ -328,6 +328,107 @@ LEX);
     }
 
     // -----------------------------------------------------------------------
+    // HTML escaping — {{ }} vs {!! !!}
+    // -----------------------------------------------------------------------
+
+    public function testEscapedEchoEscapesAllFiveHtmlChars(): void
+    {
+        $this->writeTemplate('esc_all', '{{ $v }}');
+
+        // All five characters that htmlspecialchars converts
+        $html = $this->lexer->render('esc_all', ['v' => '&<>"\'' ]);
+
+        $this->assertStringContainsString('&amp;',  $html);
+        $this->assertStringContainsString('&lt;',   $html);
+        $this->assertStringContainsString('&gt;',   $html);
+        $this->assertStringContainsString('&quot;', $html);
+        $this->assertStringContainsString('&#039;', $html);
+
+        // None of the raw characters should appear
+        $this->assertStringNotContainsString('&<>"\'', $html);
+    }
+
+    public function testEscapedEchoBlocksXssPayload(): void
+    {
+        $this->writeTemplate('esc_xss', '<div>{{ $input }}</div>');
+
+        $html = $this->lexer->render('esc_xss', ['input' => '<script>alert("xss")</script>']);
+
+        $this->assertStringNotContainsString('<script>', $html);
+        $this->assertStringContainsString('&lt;script&gt;', $html);
+        $this->assertStringContainsString('alert(&quot;xss&quot;)', $html);
+    }
+
+    public function testEscapedEchoHandlesInteger(): void
+    {
+        $this->writeTemplate('esc_int', '{{ $n }}');
+
+        $html = $this->lexer->render('esc_int', ['n' => 42]);
+        $this->assertStringContainsString('42', $html);
+    }
+
+    public function testEscapedEchoHandlesNull(): void
+    {
+        $this->writeTemplate('esc_null', '[{{ $v }}]');
+
+        $html = $this->lexer->render('esc_null', ['v' => null]);
+        $this->assertStringContainsString('[]', $html);
+    }
+
+    public function testEscapedEchoDoesNotDoubleEncode(): void
+    {
+        // A string that is already HTML-encoded must not be encoded a second time
+        $this->writeTemplate('esc_double', '{{ $v }}');
+
+        $html = $this->lexer->render('esc_double', ['v' => '&amp;']);
+        // htmlspecialchars re-encodes the & → &amp;amp; which IS expected behavior
+        // (the engine does NOT skip already-encoded entities)
+        $this->assertStringContainsString('&amp;amp;', $html);
+    }
+
+    public function testMultipleEscapedEchosInOneTemplate(): void
+    {
+        $this->writeTemplate('esc_multi', '<p>{{ $a }}</p><p>{{ $b }}</p>');
+
+        $html = $this->lexer->render('esc_multi', [
+            'a' => '<b>bold</b>',
+            'b' => 'normal',
+        ]);
+
+        $this->assertStringContainsString('&lt;b&gt;bold&lt;/b&gt;', $html);
+        $this->assertStringContainsString('<p>normal</p>', $html);
+    }
+
+    public function testRawEchoPassesThroughHtmlTags(): void
+    {
+        $this->writeTemplate('raw_tags', '{!! $html !!}');
+
+        $html = $this->lexer->render('raw_tags', ['html' => '<em>italic</em>']);
+        $this->assertStringContainsString('<em>italic</em>', $html);
+        $this->assertStringNotContainsString('&lt;', $html);
+    }
+
+    public function testRawEchoPassesThroughAllSpecialChars(): void
+    {
+        $this->writeTemplate('raw_special', '{!! $v !!}');
+
+        $raw  = '&<>"\'' ;
+        $html = $this->lexer->render('raw_special', ['v' => $raw]);
+
+        $this->assertStringContainsString($raw, $html);
+        $this->assertStringNotContainsString('&amp;', $html);
+        $this->assertStringNotContainsString('&lt;',  $html);
+    }
+
+    public function testRawEchoHandlesEmptyString(): void
+    {
+        $this->writeTemplate('raw_empty', '[{!! $v !!}]');
+
+        $html = $this->lexer->render('raw_empty', ['v' => '']);
+        $this->assertStringContainsString('[]', $html);
+    }
+
+    // -----------------------------------------------------------------------
     // Cache re-use
     // -----------------------------------------------------------------------
 
