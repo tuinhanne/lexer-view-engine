@@ -40,8 +40,7 @@ final class ValidateCommand extends Command
         $this
             ->addArgument('path', InputArgument::OPTIONAL, 'Directory or file to validate (default: viewPaths from config)')
             ->addOption('cache', 'c', InputOption::VALUE_REQUIRED, 'Cache directory (used for parsing only)')
-            ->addOption('sandbox', null, InputOption::VALUE_NONE, 'Validate against secure sandbox rules')
-            ->addOption('ext', null, InputOption::VALUE_REQUIRED, 'Template file extension');
+            ->addOption('sandbox', null, InputOption::VALUE_NONE, 'Validate against secure sandbox rules');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -52,7 +51,6 @@ final class ValidateCommand extends Command
         $pathArg  = $input->getArgument('path');
         $cacheDir = $input->getOption('cache') ?? $config?->cache ?? sys_get_temp_dir() . '/lex_validate_cache';
         $sandbox  = $input->getOption('sandbox') || ($config?->sandbox ?? false);
-        $ext      = $input->getOption('ext') ?? $config?->extension ?? LexConfig::DEFAULT_EXTENSION;
 
         if ($config && !$pathArg) {
             $io->note('Using settings from ' . $config->configFilePath);
@@ -67,14 +65,14 @@ final class ValidateCommand extends Command
 
             $files = [];
             foreach ($config->viewPaths as $vp) {
-                $files = array_merge($files, $this->collectFiles($vp, (string) $ext));
+                $files = array_merge($files, $this->collectFiles($vp));
             }
         } else {
-            $files = $this->collectFiles((string) $pathArg, (string) $ext);
+            $files = $this->collectFiles((string) $pathArg);
         }
 
         if (empty($files)) {
-            $io->warning("No .{$ext} files found.");
+            $io->warning('No .' . LexConfig::DEFAULT_EXTENSION . ' files found.');
 
             return Command::SUCCESS;
         }
@@ -135,7 +133,7 @@ final class ValidateCommand extends Command
     }
 
     /** @return string[] */
-    private function collectFiles(string $path, string $ext): array
+    private function collectFiles(string $path): array
     {
         if (is_file($path)) {
             return [$path];
@@ -153,7 +151,7 @@ final class ValidateCommand extends Command
 
         /** @var \SplFileInfo $file */
         foreach ($iterator as $file) {
-            if ($file->isFile() && $file->getExtension() === $ext) {
+            if ($file->isFile() && $file->getExtension() === LexConfig::DEFAULT_EXTENSION) {
                 $files[] = $file->getPathname();
             }
         }

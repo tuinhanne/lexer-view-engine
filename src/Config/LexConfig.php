@@ -17,7 +17,6 @@ use Wik\Lexer\Exceptions\LexException;
  * ────────────────
  * viewPaths        string[]   Directories to search for .lex templates
  * cache            string     Directory for compiled PHP / AST cache
- * extension        string     Template file extension (default: "lex")
  * production       bool       Enable production / index-build mode
  * sandbox          bool       Enable sandbox mode
  *
@@ -27,11 +26,10 @@ use Wik\Lexer\Exceptions\LexException;
  * Example lex.config.json
  * ───────────────────────
  * {
- *   "viewPaths": ["views", "resources/views"],
- *   "cache":     "cache/views",
- *   "extension":      "lex",
- *   "production":     false,
- *   "sandbox":        false
+ *   "viewPaths":  ["views", "resources/views"],
+ *   "cache":      "cache/views",
+ *   "production": false,
+ *   "sandbox":    false
  * }
  */
 final class LexConfig
@@ -51,7 +49,6 @@ final class LexConfig
     public readonly array $viewPaths;
 
     public readonly string $cache;
-    public readonly string $extension;
     public readonly bool   $production;
     public readonly bool   $sandbox;
 
@@ -64,14 +61,12 @@ final class LexConfig
     private function __construct(
         array  $viewPaths,
         string $cache,
-        string $extension,
         bool   $production,
         bool   $sandbox,
         string $configFilePath,
     ) {
         $this->viewPaths      = $viewPaths;
         $this->cache          = $cache;
-        $this->extension      = $extension;
         $this->production     = $production;
         $this->sandbox        = $sandbox;
         $this->configFilePath = $configFilePath;
@@ -125,9 +120,8 @@ final class LexConfig
         $dir = dirname(realpath($filePath) ?: $filePath);
 
         return new self(
-            viewPaths: self::resolvePaths($data['viewPaths'] ?? self::DEFAULT_VIEW_PATHS, $dir),
-            cache:     self::resolvePath($data['cache']      ?? self::DEFAULT_CACHE_PATH, $dir),
-            extension:      self::str($data['extension'] ?? self::DEFAULT_EXTENSION),
+            viewPaths:      self::resolvePaths($data['viewPaths'] ?? self::DEFAULT_VIEW_PATHS, $dir),
+            cache:          self::resolvePath($data['cache']      ?? self::DEFAULT_CACHE_PATH, $dir),
             production:     (bool) ($data['production'] ?? false),
             sandbox:        (bool) ($data['sandbox']    ?? false),
             configFilePath: realpath($filePath) ?: $filePath,
@@ -206,10 +200,5 @@ final class LexConfig
         return str_starts_with($path, '/')
             || str_starts_with($path, '\\')
             || (strlen($path) >= 3 && $path[1] === ':');
-    }
-
-    private static function str(mixed $value): string
-    {
-        return ltrim((string) $value, '.');
     }
 }

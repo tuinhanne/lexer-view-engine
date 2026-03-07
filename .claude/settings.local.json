@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(xxd \"c:/Users/tuinh/Desktop/lexer/src/Support/DirectiveRegistry.php\")",
-      "Bash(python3 -c \":*)"
+      "Bash(python3 -c \":*)",
+      "Bash(npm run build)",
+      "Bash(unzip -l lex-template-0.0.4.vsix)",
+      "Bash(npm install --save-dev esbuild)",
+      "Bash(node build.js --production)",
+      "Bash(npx @vscode/vsce package --no-dependencies)"
     ]
   }
 }

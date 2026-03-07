@@ -68,7 +68,6 @@ final class InitCommand extends Command
         if ($defaults) {
             $viewPathsRaw = 'views,resources/views';
             $cache        = LexConfig::DEFAULT_CACHE_PATH;
-            $extension    = LexConfig::DEFAULT_EXTENSION;
         } else {
             $viewPathsRaw = $io->ask(
                 'View paths (comma-separated, relative to project root)',
@@ -79,8 +78,6 @@ final class InitCommand extends Command
                 'Cache directory',
                 LexConfig::DEFAULT_CACHE_PATH,
             ) ?? LexConfig::DEFAULT_CACHE_PATH;
-
-            $extension = LexConfig::DEFAULT_EXTENSION;
         }
 
         $viewPaths = array_values(array_filter(
@@ -91,7 +88,6 @@ final class InitCommand extends Command
         $config = [
             'viewPaths'  => $viewPaths,
             'cache'      => $cache,
-            'extension'  => ltrim($extension, '.'),
             'production' => false,
             'sandbox'    => false,
         ];

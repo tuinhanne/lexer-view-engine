@@ -36,8 +36,7 @@ final class BenchmarkCommand extends Command
             ->addOption('paths', 'p', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'View lookup directories')
             ->addOption('cache', 'c', InputOption::VALUE_REQUIRED, 'Cache directory', sys_get_temp_dir() . '/lex_bench_cache')
             ->addOption('iterations', 'i', InputOption::VALUE_REQUIRED, 'Number of render iterations', '100')
-            ->addOption('data', null, InputOption::VALUE_REQUIRED, 'JSON-encoded template variables', '{}')
-            ->addOption('ext', null, InputOption::VALUE_REQUIRED, 'Template file extension', LexConfig::DEFAULT_EXTENSION);
+            ->addOption('data', null, InputOption::VALUE_REQUIRED, 'JSON-encoded template variables', '{}');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -47,7 +46,6 @@ final class BenchmarkCommand extends Command
         $paths      = (array) $input->getOption('paths');
         $cacheDir   = (string) ($input->getOption('cache') ?? sys_get_temp_dir() . '/lex_bench_cache');
         $iterations = (int) ($input->getOption('iterations') ?? 100);
-        $ext        = (string) ($input->getOption('ext') ?? LexConfig::DEFAULT_EXTENSION);
         $dataJson   = (string) ($input->getOption('data') ?? '{}');
 
         $data = json_decode($dataJson, true) ?? [];
@@ -58,7 +56,6 @@ final class BenchmarkCommand extends Command
             if ($config !== null) {
                 $paths    = $config->viewPaths;
                 $cacheDir = $input->getOption('cache') ?? $config->cache;
-                $ext      = $input->getOption('ext') ?? $config->extension;
                 $io->note('Using settings from ' . $config->configFilePath);
             }
         }
@@ -71,8 +68,7 @@ final class BenchmarkCommand extends Command
 
         $lexer = (new Lexer())
             ->paths($paths)
-            ->cache((string) $cacheDir)
-            ->extension((string) $ext);
+            ->cache((string) $cacheDir);
 
         $io->title('Wik/Lexer — Benchmark');
         $io->text("Template  : {$template}");

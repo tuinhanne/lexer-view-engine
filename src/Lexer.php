@@ -47,7 +47,6 @@ final class Lexer
 
     private array $viewPaths       = [];
     private ?string $cachePath     = null;
-    private string $extension      = LexConfig::DEFAULT_EXTENSION;
     private bool $production       = false;
     private ?SandboxConfig $sandboxConfig = null;
     private ?EscaperInterface $escaper    = null;
@@ -88,7 +87,6 @@ final class Lexer
         $lexer = new static();
         $lexer->paths($config->viewPaths);
         $lexer->cache($config->cache);
-        $lexer->extension($config->extension);
 
         if ($config->production) {
             $lexer->setProduction();
@@ -135,17 +133,6 @@ final class Lexer
     public function cache(string $path): static
     {
         $this->cachePath = $path;
-        $this->engine    = null;
-
-        return $this;
-    }
-
-    /**
-     * Override the default file extension (default: LexConfig::DEFAULT_EXTENSION).
-     */
-    public function extension(string $ext): static
-    {
-        $this->extension = ltrim($ext, '.');
         $this->engine    = null;
 
         return $this;
@@ -346,7 +333,7 @@ final class Lexer
 
         // FileLoader is the single source of truth for path resolution and
         // mtime-based cache keys — ViewEngine delegates all lookups to it.
-        $loader = new FileLoader($this->viewPaths, $this->extension);
+        $loader = new FileLoader($this->viewPaths);
 
         // Convention: auto-register the `components` subdirectory of every view
         // path so components are discovered without any extra configuration.

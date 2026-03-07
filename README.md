@@ -50,13 +50,12 @@ composer require wik/lexer
 vendor/bin/lex init
 ```
 
-Creates `lex.config.json` in the project root (and `.vscode/settings.json` for the LSP extension):
+Creates `lex.config.json` in the project root:
 
 ```json
 {
   "viewPaths":  ["views", "resources/views"],
   "cache":      "cache/views",
-  "extension":  "lex",
   "production": false,
   "sandbox":    false
 }
@@ -76,7 +75,9 @@ echo $lexer->render('home', ['title' => 'Hello World', 'user' => $user]);
 ```php
 use Wik\Lexer\Lexer;
 
-$lexer = Lexer::fromConfig();
+$lexer = (new Lexer())
+    ->paths([__DIR__ . '/views'])
+    ->cache(__DIR__ . '/storage/cache/views');
 
 echo $lexer->render('home', ['title' => 'Hello World', 'user' => $user]);
 ```
@@ -120,7 +121,7 @@ HTML comments are **stripped at lex time** — they never appear in compiled out
 Prefix `#` with a backslash to output it literally without triggering a directive:
 
 ```
-<code>\#truncate($text, 60)</code>  {{-- renders: #truncate($text, 60) --}}
+<code>\#truncate($text, 60)</code>  <!-- renders: #truncate($text, 60) -->
 ```
 
 Only `\#` followed by a letter is treated as an escape; `\#123` or standalone `\` are output as-is.
@@ -244,19 +245,19 @@ Multi-level break/continue: `#break(2)`, `#continue(2)`
 ## Includes
 
 ```
-{{-- Basic include --}}
+<!-- Basic include -->
 #include('partials.header')
 
-{{-- With additional data --}}
+<!-- With additional data -->
 #include('partials.nav', ['active' => 'home'])
 
-{{-- Only include if the template file exists --}}
+<!-- Only include if the template file exists -->
 #includeIf('partials.sidebar')
 
-{{-- Conditionally include --}}
+<!-- Conditionally include -->
 #includeWhen($user->isAdmin(), 'partials.admin-bar')
 
-{{-- First match wins --}}
+<!-- First match wins -->
 #includeFirst(['theme.header', 'partials.header'])
 ```
 
@@ -312,6 +313,12 @@ leak into the parent layout's `#yield` slots.
 #endsection
 ```
 
+### `#stack` with a Default
+
+```
+#stack('scripts', '<script src="/default.js"></script>')
+```
+
 ---
 
 ## Components
@@ -345,6 +352,31 @@ leak into the parent layout's `#yield` slots.
 </div>
 ```
 
+### Component Discovery
+
+Components are resolved automatically from a `components/` subdirectory inside
+each configured view path (e.g. `views/components/`). No extra configuration is needed.
+
+Any tag whose name is **not** a standard HTML5/SVG/MathML element is treated as a
+component — both PascalCase and kebab-case names work:
+
+```
+<UserProfile />
+<user-profile />
+<user-profile></user-profile>
+```
+
+Given any of the above, Lex looks for the component file (in order):
+1. `user-profile.lex`
+2. `UserProfile.lex`
+3. `userprofile.lex`
+
+To register a component explicitly by file path:
+
+```php
+$lexer->component('Alert', __DIR__ . '/views/components/alert.lex');
+```
+
 ### Component Classes
 
 ```php
@@ -366,7 +398,17 @@ class Alert
 $lexer->componentClassNamespace('App\\View\\Components');
 ```
 
-Props are automatically injected into `mount()` via reflection.
+Props are automatically injected into `mount()` via reflection. All public
+properties of the class instance are available in the component template.
+
+Auto-discovery looks for `{PascalCase}Component` — e.g. `<Alert>` resolves
+to `App\View\Components\AlertComponent`.
+
+To register a class explicitly:
+
+```php
+$lexer->registerComponentClass('Alert', App\View\Components\AlertComponent::class);
+```
 
 ### Prop Types
 
@@ -399,8 +441,8 @@ For standalone PHP projects that need inline PHP logic:
 ## Debug Helpers
 
 ```
-#dump($variable)       {{-- var_dump() --}}
-#dd($variable)         {{-- var_dump() + exit(1) --}}
+#dump($variable)       <!-- var_dump() -->
+#dd($variable)         <!-- var_dump() + exit(1) -->
 ```
 
 ---
@@ -419,6 +461,9 @@ $lexer->directive('datetime', function (string $expression): string {
 #datetime($post->created_at)
 ```
 
+Custom directives are resolved at **parse time** — the callable runs once
+during compilation, not on every render.
+
 ---
 
 ## Configuration
@@ -431,7 +476,6 @@ Place `lex.config.json` at the project root. All paths may be relative (resolved
 {
   "viewPaths":  ["views", "resources/views"],
   "cache":      "cache/views",
-  "extension":  "lex",
   "production": false,
   "sandbox":    false
 }
@@ -441,12 +485,13 @@ Place `lex.config.json` at the project root. All paths may be relative (resolved
 |---|---|---|---|
 | `viewPaths` | `string[]` | `["views","resources/views"]` | Directories scanned for `.lex` templates |
 | `cache` | `string` | `"cache/views"` | Compiled-file cache directory |
-| `extension` | `string` | `"lex"` | Template file extension |
 | `production` | `bool` | `false` | Enable production mode on startup |
 | `sandbox` | `bool` | `false` | Enable secure sandbox mode |
 
 The CLI commands (`compile`, `validate`, `benchmark`) read this file automatically when no explicit options are given.
-The [Lex LSP extension](lex-language-server/) also reads the same file to power IntelliSense.
+The [Lex LSP extension](../lex-language-server/) also reads the same file to power IntelliSense.
+
+`LexConfig` walks up from the current working directory to find the file, so you can call `Lexer::fromConfig()` from anywhere inside the project without passing a path.
 
 ### Fluent API
 
@@ -458,11 +503,11 @@ $lexer = (new Lexer())
     // View directories (dot-notation resolution)
     ->paths([__DIR__ . '/views'])
 
+    // Add a single directory without replacing existing ones
+    ->addPath(__DIR__ . '/views/vendor')
+
     // Cache directory
     ->cache(__DIR__ . '/storage/cache/views')
-
-    // Template file extension (default: 'lex')
-    ->extension('lex')
 
     // Enable production mode (precompiled index, skip source checks)
     ->setProduction()
@@ -479,6 +524,9 @@ $lexer = (new Lexer())
 
     // Component class namespace
     ->componentClassNamespace('App\\View\\Components')
+
+    // Register a component explicitly by file path
+    ->component('Alert', __DIR__ . '/views/components/alert.lex')
 
     // Custom directives
     ->directive('money', fn($e) => "<?php echo number_format({$e}, 2); ?>")
@@ -531,7 +579,7 @@ use Wik\Lexer\Loader\NamespaceLoader;
 
 $loader = new NamespaceLoader();
 $loader->addNamespace('admin', __DIR__ . '/views/admin');
-$loader->addNamespace('mail',  __DIR__ . '/views/mail', 'html');
+$loader->addNamespace('mail',  __DIR__ . '/views/mail');
 ```
 
 Template `'admin::dashboard'` resolves to `views/admin/dashboard.lex`.
@@ -552,7 +600,7 @@ $loader->set('greeting', 'Hello, {{ $name }}!');
 ### Setup
 
 ```bash
-# Create lex.config.json (+ .vscode/settings.json for the LSP)
+# Create lex.config.json
 vendor/bin/lex init
 
 # Non-interactive (use all defaults)
@@ -560,6 +608,9 @@ vendor/bin/lex init --defaults
 
 # Specify a project directory other than cwd
 vendor/bin/lex init --dir=/path/to/project
+
+# Overwrite an existing lex.config.json
+vendor/bin/lex init --force
 ```
 
 ### Commands (with `lex.config.json` all options become optional)
@@ -584,7 +635,7 @@ vendor/bin/lex validate views/ --sandbox
 vendor/bin/lex benchmark home --iterations=1000
 ```
 
-When `lex.config.json` is present in the project root (or any parent directory), `compile`, `validate`, and `benchmark` automatically read `viewPaths`, `cache`, and `extension` from it. Explicit CLI options always take precedence.
+When `lex.config.json` is present in the project root (or any parent directory), `compile`, `validate`, and `benchmark` automatically read `viewPaths` and `cache` from it. Explicit CLI options always take precedence.
 
 ---
 

@@ -33,8 +33,7 @@ final class CompileCommand extends Command
             ->addArgument('path', InputArgument::OPTIONAL, 'Directory or file to compile (default: viewPaths from config)')
             ->addOption('cache', 'c', InputOption::VALUE_REQUIRED, 'Cache directory for compiled PHP files')
             ->addOption('paths', 'p', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'View lookup directories')
-            ->addOption('production', null, InputOption::VALUE_NONE, 'Enable production mode (builds the precompiled index)')
-            ->addOption('ext', null, InputOption::VALUE_REQUIRED, 'Template file extension');
+            ->addOption('production', null, InputOption::VALUE_NONE, 'Enable production mode (builds the precompiled index)');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -48,7 +47,6 @@ final class CompileCommand extends Command
         $cacheDir   = $input->getOption('cache')   ?? $config?->cache       ?? sys_get_temp_dir() . '/lex_cache';
         $viewPaths  = (array) $input->getOption('paths') ?: ($config?->viewPaths ?? []);
         $production = $input->getOption('production') || ($config?->production ?? false);
-        $ext        = $input->getOption('ext')         ?? $config?->extension  ?? LexConfig::DEFAULT_EXTENSION;
 
         if ($config && !$pathArg) {
             $io->note('Using settings from ' . $config->configFilePath);
@@ -64,14 +62,14 @@ final class CompileCommand extends Command
 
             $files = [];
             foreach ($viewPaths as $vp) {
-                $files = array_merge($files, $this->collectFiles($vp, $ext));
+                $files = array_merge($files, $this->collectFiles($vp));
             }
         } else {
-            $files = $this->collectFiles($pathArg, $ext);
+            $files = $this->collectFiles($pathArg);
         }
 
         if (empty($files)) {
-            $io->warning("No .{$ext} files found.");
+            $io->warning('No .' . LexConfig::DEFAULT_EXTENSION . ' files found.');
 
             return Command::SUCCESS;
         }
@@ -81,8 +79,7 @@ final class CompileCommand extends Command
 
         $lexer = (new Lexer())
             ->paths($paths)
-            ->cache((string) $cacheDir)
-            ->extension((string) $ext);
+            ->cache((string) $cacheDir);
 
         if ($production) {
             $lexer->setProduction();
@@ -120,7 +117,7 @@ final class CompileCommand extends Command
     }
 
     /** @return string[] */
-    private function collectFiles(string $path, string $ext): array
+    private function collectFiles(string $path): array
     {
         if (is_file($path)) {
             return [$path];
@@ -138,7 +135,7 @@ final class CompileCommand extends Command
 
         /** @var \SplFileInfo $file */
         foreach ($iterator as $file) {
-            if ($file->isFile() && $file->getExtension() === $ext) {
+            if ($file->isFile() && $file->getExtension() === LexConfig::DEFAULT_EXTENSION) {
                 $files[] = $file->getPathname();
             }
         }
