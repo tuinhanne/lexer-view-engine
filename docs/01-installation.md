@@ -24,7 +24,6 @@ Example `lex.config.json`:
 ```json
 {
   "viewPaths":  ["views", "resources/views"],
-  "cache":      "cache/views",
   "extension":  "lex",
   "production": false,
   "sandbox":    false
@@ -58,7 +57,7 @@ Create `views/home.lex`:
 </html>
 ```
 
-Make sure the cache directory (`cache/views` by default) exists and is writable.
+The `.lexer/` cache directory is automatically created at the project root (alongside `lex.config.json`) and requires no manual setup or permissions configuration.
 
 ---
 
@@ -67,10 +66,13 @@ Make sure the cache directory (`cache/views` by default) exists and is writable.
 ```php
 use Wik\Lexer\Lexer;
 
-$lexer = Lexer::fromConfig();
+$lexer = (new Lexer())
+    ->paths([__DIR__ . '/views']);
 
 echo $lexer->render('home', ['title' => 'Welcome']);
 ```
+
+When no `lex.config.json` is found the cache is placed at `{cwd}/.lexer/`.
 
 ---
 
@@ -81,7 +83,6 @@ The config file is searched by **walking up** from the current working directory
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `viewPaths` | `string[]` | `["views","resources/views"]` | Directories scanned for `.lex` templates. Relative paths are resolved from the config file's directory. |
-| `cache` | `string` | `"cache/views"` | Compiled-file cache directory. |
 | `extension` | `string` | `"lex"` | Template file extension (without the dot). |
 | `production` | `bool` | `false` | Enable production mode (precompiled index, skip source I/O). |
 | `sandbox` | `bool` | `false` | Enable secure sandbox mode. |
@@ -97,7 +98,6 @@ The same file is read by the [Lex LSP extension](../lex-language-server/) for co
 | `Lexer::fromConfig(string $dir = '')` | **Static factory** — load from `lex.config.json` |
 | `paths(array $dirs)` | Set the directories searched for `.lex` files |
 | `addPath(string $dir)` | Append one directory to the search path |
-| `cache(string $dir)` | Set the compiled-file cache directory |
 | `extension(string $ext)` | Change the template file extension (default: `lex`) |
 | `setProduction(bool $v = true)` | Enable (`true`, default) or disable (`false`) production mode. In production, templates are never recompiled from source — run `lex compile` during deployment instead. |
 | `enableSandbox(?SandboxConfig $cfg)` | Enable sandbox mode |
@@ -123,9 +123,15 @@ my-project/
 │   │   ├── Card.lex
 │   │   └── Alert.lex
 │   └── home.lex
-└── storage/
-    └── framework/
-        └── views/          ← compiled cache (must be writable)
+└── .lexer/                 ← cache root (auto-created, add to .gitignore)
+    ├── compiled/           ← compiled PHP files ({md5}.php)
+    └── ast/                ← serialised AST snapshots ({md5}.ast)
+```
+
+Add `.lexer/` to your `.gitignore`:
+
+```
+.lexer/
 ```
 
 ---
@@ -139,8 +145,8 @@ $this->app->singleton(Lexer::class, fn() => Lexer::fromConfig());
 // Option B: manual configuration
 $this->app->singleton(Lexer::class, function () {
     return (new Lexer())
-        ->paths([resource_path('views')])   // views/components/ is auto-registered
-        ->cache(storage_path('framework/lex'));
+        ->paths([resource_path('views')]);   // views/components/ is auto-registered
+        // cache is placed at {cwd}/.lexer/ automatically
 });
 ```
 

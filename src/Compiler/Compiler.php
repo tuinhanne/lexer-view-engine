@@ -42,11 +42,11 @@ use Wik\Lexer\Support\DirectiveRegistry;
  *     raw source string (md5'd by FileCache), but callers may supply an explicit
  *     $cacheKey — e.g. a path+mtime hash from FileLoader::getCacheKey() — to
  *     avoid hashing the full source on every request.
- *   - Compiled PHP is stored as  {cacheDir}/{md5(key)}.php
- *   - Serialised AST is stored as {cacheDir}/{md5(key)}.ast
+ *   - Compiled PHP is stored as  {projectRoot}/.lexer/compiled/{md5(key)}.php
+ *   - Serialised AST is stored as {projectRoot}/.lexer/ast/{md5(key)}.ast
  *   - If igbinary is available it is used for faster, smaller AST serialisation.
- *   - In production mode, a precompiled view index (cache/index.php) is
- *     maintained so source-level file lookups can be skipped on every request.
+ *   - In production mode, a precompiled view index (.lexer/compiled/index.php)
+ *     is maintained so source-level file lookups can be skipped on every request.
  *
  * Validation & optimisation:
  *   - When a SandboxConfig is provided, an AstValidator enforces sandbox rules

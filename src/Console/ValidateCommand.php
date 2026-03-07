@@ -14,9 +14,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Wik\Lexer\Cache\FileCache;
 use Wik\Lexer\Compiler\AstValidator;
 use Wik\Lexer\Compiler\Compiler;
-use Wik\Lexer\Compiler\OptimizePass;
 use Wik\Lexer\Config\LexConfig;
 use Wik\Lexer\Exceptions\TemplateSyntaxException;
+use Wik\Lexer\Lexer;
 use Wik\Lexer\Security\ExpressionValidator;
 use Wik\Lexer\Security\SandboxConfig;
 use Wik\Lexer\Support\DirectiveRegistry;
@@ -27,7 +27,7 @@ use Wik\Lexer\Support\DirectiveRegistry;
  * Usage with explicit options:
  *   lex validate views/
  *   lex validate views/ --sandbox
- *   lex validate views/home.lex --cache=tmp
+ *   lex validate views/home.lex
  *
  * Usage with lex.config.json in project root:
  *   lex validate
@@ -39,7 +39,6 @@ final class ValidateCommand extends Command
     {
         $this
             ->addArgument('path', InputArgument::OPTIONAL, 'Directory or file to validate (default: viewPaths from config)')
-            ->addOption('cache', 'c', InputOption::VALUE_REQUIRED, 'Cache directory (used for parsing only)')
             ->addOption('sandbox', null, InputOption::VALUE_NONE, 'Validate against secure sandbox rules');
     }
 
@@ -49,7 +48,6 @@ final class ValidateCommand extends Command
 
         $config   = LexConfig::tryLoad();
         $pathArg  = $input->getArgument('path');
-        $cacheDir = $input->getOption('cache') ?? $config?->cache ?? sys_get_temp_dir() . '/lex_validate_cache';
         $sandbox  = $input->getOption('sandbox') || ($config?->sandbox ?? false);
 
         if ($config && !$pathArg) {
@@ -79,9 +77,22 @@ final class ValidateCommand extends Command
 
         $sandboxConfig = $sandbox ? SandboxConfig::secure() : null;
 
+        // Derive .lexer/ root for the FileCache (parse() does not write to it,
+        // but FileCache is required by Compiler's constructor).
+        $root     = $config?->projectRoot ?? (string) getcwd();
+        $lexerDir = rtrim($root, '/\\') . DIRECTORY_SEPARATOR . LexConfig::CACHE_DIR;
+
+        // Load custom directives so the parser recognises them during validation.
+        // Uses the same resolution order as CompileCommand / BenchmarkCommand:
+        //   1. "directivesFile" in lex.config.json
+        //   2. lex.directives.php at the project root (auto-discovery)
+        $tempLexer = new Lexer();
+        $this->applyDirectivesFile($tempLexer, $config, $io);
+        $registry = $tempLexer->getRegistry();
+
         $compiler = new Compiler(
-            new DirectiveRegistry(),
-            new FileCache((string) $cacheDir),
+            $registry,
+            new FileCache($lexerDir),
             false,
             $sandboxConfig,
         );
@@ -130,6 +141,39 @@ final class ValidateCommand extends Command
         $io->success('All ' . count($files) . ' template(s) passed validation.');
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Load and apply the directives file to the given Lexer instance.
+     *
+     * Resolution order:
+     *   1. "directivesFile" field in lex.config.json
+     *   2. lex.directives.php at the project root (auto-discovery)
+     *
+     * The file must return callable(Lexer): void.
+     */
+    private function applyDirectivesFile(Lexer $lexer, ?LexConfig $config, SymfonyStyle $io): void
+    {
+        $file = $config?->directivesFile;
+
+        if ($file === null) {
+            $fallback = rtrim((string) getcwd(), '/\\') . DIRECTORY_SEPARATOR . LexConfig::DIRECTIVES_FILE;
+            $file     = is_file($fallback) ? $fallback : null;
+        }
+
+        if ($file === null) {
+            return;
+        }
+
+        $setup = require $file;
+
+        if (!is_callable($setup)) {
+            $io->warning("Directives file does not return a callable — skipped: {$file}");
+
+            return;
+        }
+
+        $setup($lexer);
     }
 
     /** @return string[] */

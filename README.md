@@ -56,7 +56,6 @@ Creates `lex.config.json` in the project root:
 ```json
 {
   "viewPaths":  ["views", "resources/views"],
-  "cache":      "cache/views",
   "production": false,
   "sandbox":    false
 }
@@ -77,8 +76,7 @@ echo $lexer->render('home', ['title' => 'Hello World', 'user' => $user]);
 use Wik\Lexer\Lexer;
 
 $lexer = (new Lexer())
-    ->paths([__DIR__ . '/views'])
-    ->cache(__DIR__ . '/storage/cache/views');
+    ->paths([__DIR__ . '/views']);
 
 echo $lexer->render('home', ['title' => 'Hello World', 'user' => $user]);
 ```
@@ -476,7 +474,6 @@ Place `lex.config.json` at the project root. All paths may be relative (resolved
 ```json
 {
   "viewPaths":  ["views", "resources/views"],
-  "cache":      "cache/views",
   "production": false,
   "sandbox":    false
 }
@@ -485,9 +482,17 @@ Place `lex.config.json` at the project root. All paths may be relative (resolved
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `viewPaths` | `string[]` | `["views","resources/views"]` | Directories scanned for `.lex` templates |
-| `cache` | `string` | `"cache/views"` | Compiled-file cache directory |
 | `production` | `bool` | `false` | Enable production mode on startup |
 | `sandbox` | `bool` | `false` | Enable secure sandbox mode |
+
+The compiled template cache is always placed at `{projectRoot}/.lexer/`:
+
+| Path | Contents |
+|---|---|
+| `.lexer/compiled/` | Compiled PHP files (`{md5}.php`) |
+| `.lexer/ast/` | Serialised AST snapshots (`{md5}.ast`) |
+| `.lexer/compiled/index.php` | Precompiled view index (production mode) |
+| `.lexer/view_dependencies.json` | Dependency graph for cache invalidation |
 
 The CLI commands (`compile`, `validate`, `benchmark`) read this file automatically when no explicit options are given.
 The [Lex LSP extension](../lex-language-server/) also reads the same file to power IntelliSense.
@@ -506,9 +511,6 @@ $lexer = (new Lexer())
 
     // Add a single directory without replacing existing ones
     ->addPath(__DIR__ . '/views/vendor')
-
-    // Cache directory
-    ->cache(__DIR__ . '/storage/cache/views')
 
     // Enable production mode (precompiled index, skip source checks)
     ->setProduction()
@@ -621,10 +623,13 @@ vendor/bin/lex init --force
 vendor/bin/lex compile
 
 # …or target a specific path / file
-vendor/bin/lex compile views/home.lex --cache=storage/cache --production
+vendor/bin/lex compile views/home.lex --production
 
-# Clear the compiled cache
-vendor/bin/lex cache:clear ./storage/cache/views
+# Clear the compiled cache (.lexer/)
+vendor/bin/lex cache:clear
+
+# Clear only the precompiled index (keep compiled PHP files)
+vendor/bin/lex cache:clear --index-only
 
 # Validate all templates from config
 vendor/bin/lex validate
@@ -636,7 +641,7 @@ vendor/bin/lex validate views/ --sandbox
 vendor/bin/lex benchmark home --iterations=1000
 ```
 
-When `lex.config.json` is present in the project root (or any parent directory), `compile`, `validate`, and `benchmark` automatically read `viewPaths` and `cache` from it. Explicit CLI options always take precedence.
+When `lex.config.json` is present in the project root (or any parent directory), `compile`, `validate`, and `benchmark` automatically read `viewPaths` from it. Explicit CLI options always take precedence.
 
 ---
 
@@ -711,7 +716,7 @@ every static dependency it finds:
 | `#includeIf` / `#includeWhen` / `#includeFirst` | include dependencies (static string args only) |
 | `<Card />`, `<Alert>` | component tag dependency |
 
-The graph is persisted to `{cacheDir}/view_dependencies.json`:
+The graph is persisted to `.lexer/view_dependencies.json`:
 
 ```json
 {
@@ -746,11 +751,11 @@ resolved and are silently skipped — only string literals are tracked.
 
 ### Cache clear
 
-`lex cache:clear` also removes `view_dependencies.json`, forcing a clean slate
-on the next compile run:
+`lex cache:clear` removes all compiled files, AST snapshots, and
+`view_dependencies.json`, forcing a clean slate on the next compile run:
 
 ```bash
-vendor/bin/lex cache:clear ./storage/cache/views
+vendor/bin/lex cache:clear
 ```
 
 ### Querying the graph (tooling / advanced use)
@@ -758,7 +763,7 @@ vendor/bin/lex cache:clear ./storage/cache/views
 ```php
 use Wik\Lexer\Cache\DependencyGraph;
 
-$graph = new DependencyGraph('/path/to/cache');
+$graph = new DependencyGraph('/path/to/project/.lexer');
 
 // Which templates does home.lex depend on?
 $graph->getDeps('/abs/views/pages/home.lex');
@@ -814,7 +819,7 @@ OptimizePass       merge adjacent TextNodes, remove empty nodes (optional)
 Code generation    Node::compile() → PHP source string
     │  string
     ▼
-FileCache          atomic write → {cacheDir}/{md5(key)}.php
+FileCache          atomic write → .lexer/compiled/{md5(key)}.php
     │  path
     ▼
 include()          executed in isolated scope with $__env injected

@@ -17,14 +17,22 @@ use Wik\Lexer\Lexer;
 /**
  * Benchmark cold-compile and warm-render performance for a template.
  *
- * Measures three phases:
- *   1. Cold compile — lex + parse + optimize + PHP codegen (no cache)
- *   2. Warm render  — include pre-compiled PHP + execute
- *   3. Full render  — end-to-end Lexer::render() with warm cache
+ * Measures two phases:
+ *   1. Compile      — cache-check + recompile if stale (or cold compile if no cache exists)
+ *   2. Warm render  — include pre-compiled PHP + execute (N iterations)
+ *
+ * The cache is automatically placed in {projectRoot}/.lexer/ (derived
+ * from lex.config.json or cwd when no config is present).
+ *
+ * Custom directives are loaded automatically from lex.directives.php at
+ * the project root (or "directivesFile" in lex.config.json) — no flags needed.
+ *
+ * For true cold-compile measurements, clear the cache first:
+ *   lex cache:clear && lex benchmark home
  *
  * Usage:
- *   lex benchmark home --paths=views --cache=tmp --iterations=100
- *   lex benchmark emails.welcome --paths=views --cache=tmp --data='{"name":"Alice"}'
+ *   lex benchmark home --paths=views --iterations=100
+ *   lex benchmark emails.welcome --paths=views --data='{"name":"Alice"}'
  */
 #[AsCommand(name: 'benchmark', description: 'Benchmark compile and render performance')]
 final class BenchmarkCommand extends Command
@@ -34,7 +42,6 @@ final class BenchmarkCommand extends Command
         $this
             ->addArgument('template', InputArgument::REQUIRED, 'Template name to benchmark (dot notation)')
             ->addOption('paths', 'p', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'View lookup directories')
-            ->addOption('cache', 'c', InputOption::VALUE_REQUIRED, 'Cache directory', sys_get_temp_dir() . '/lex_bench_cache')
             ->addOption('iterations', 'i', InputOption::VALUE_REQUIRED, 'Number of render iterations', '100')
             ->addOption('data', null, InputOption::VALUE_REQUIRED, 'JSON-encoded template variables', '{}');
     }
@@ -44,18 +51,18 @@ final class BenchmarkCommand extends Command
         $io         = new SymfonyStyle($input, $output);
         $template   = (string) $input->getArgument('template');
         $paths      = (array) $input->getOption('paths');
-        $cacheDir   = (string) ($input->getOption('cache') ?? sys_get_temp_dir() . '/lex_bench_cache');
         $iterations = (int) ($input->getOption('iterations') ?? 100);
         $dataJson   = (string) ($input->getOption('data') ?? '{}');
 
         $data = json_decode($dataJson, true) ?? [];
 
-        // Fall back to lex.config.json when --paths is not specified
+        // Fall back to lex.config.json when --paths is not specified.
+        // The project root (and thus .lexer/ cache location) is derived
+        // from the config file automatically.
+        $config = LexConfig::tryLoad();
         if (empty($paths)) {
-            $config = LexConfig::tryLoad();
             if ($config !== null) {
-                $paths    = $config->viewPaths;
-                $cacheDir = $input->getOption('cache') ?? $config->cache;
+                $paths = $config->viewPaths;
                 $io->note('Using settings from ' . $config->configFilePath);
             }
         }
@@ -66,53 +73,104 @@ final class BenchmarkCommand extends Command
             return Command::FAILURE;
         }
 
-        $lexer = (new Lexer())
-            ->paths($paths)
-            ->cache((string) $cacheDir);
+        if ($config !== null) {
+            $lexer = Lexer::fromConfig()->paths($paths);
+        } else {
+            $lexer = (new Lexer())->paths($paths);
+        }
+
+        // Load custom directives automatically from lex.directives.php
+        // (or "directivesFile" in lex.config.json) so templates with
+        // custom directives can be compiled/rendered by the CLI.
+        $this->applyDirectivesFile($lexer, $config, $io);
 
         $io->title('Wik/Lexer — Benchmark');
         $io->text("Template  : {$template}");
         $io->text("Iterations: {$iterations}");
         $io->newLine();
 
-        // --- Phase 1: Cold compile ---
-        $compiler   = $lexer->getCompiler();
-        $engine     = $lexer->getEngine();
-        $filePath   = $engine->resolveName($template);
-        $source     = file_get_contents($filePath);
+        $compiler = $lexer->getCompiler();
+        $engine   = $lexer->getEngine();
+        $filePath = $engine->resolveName($template);
+        $source   = (string) file_get_contents($filePath);
 
-        // Clear existing cache to force cold compile
-        $compiler->recompile($source, $filePath);
+        // --- Phase 1: Compile (cache-check + compile if not yet cached) ---
+        // We do NOT force a recompile here because templates with custom
+        // directives require the application's directive registration.
+        // For a true cold-compile measurement, run:  lex cache:clear && lex benchmark <template>
+        try {
+            $t0          = hrtime(true);
+            $compiler->compile($source, $filePath);
+            $compileTime = (hrtime(true) - $t0) / 1_000_000; // ms
 
-        $t0           = hrtime(true);
-        $compiledPath = $compiler->compile($source, $filePath);
-        $coldCompile  = (hrtime(true) - $t0) / 1_000_000; // ms
+            $io->text(sprintf('Compile      : <comment>%.3f ms</comment>', $compileTime));
+        } catch (\Throwable $e) {
+            $io->error('Compilation failed: ' . $e->getMessage());
 
-        $io->text(sprintf('Cold compile : <comment>%.3f ms</comment>', $coldCompile));
-
-        // --- Phase 2: Warm render (include pre-compiled PHP) ---
-        // Warm cache is already present from phase 1.
-        $t0 = hrtime(true);
-        for ($i = 0; $i < $iterations; $i++) {
-            $lexer->render($template, $data);
+            return Command::FAILURE;
         }
-        $warmTotal  = (hrtime(true) - $t0) / 1_000_000;
-        $warmPerOp  = $warmTotal / $iterations;
 
-        $io->text(sprintf(
-            'Warm render : <comment>%.3f ms</comment> total, <comment>%.3f ms</comment> per iteration (%d×)',
-            $warmTotal,
-            $warmPerOp,
-            $iterations,
-        ));
+        // --- Phase 2: Warm render ---
+        try {
+            $t0 = hrtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $lexer->render($template, $data);
+            }
+            $warmTotal = (hrtime(true) - $t0) / 1_000_000;
+            $warmPerOp = $warmTotal / $iterations;
 
-        // --- Phase 3: Throughput ---
-        $throughput = $iterations / ($warmTotal / 1000); // renders/second
-        $io->text(sprintf('Throughput  : <comment>%.0f</comment> renders/sec', $throughput));
+            $io->text(sprintf(
+                'Warm render  : <comment>%.3f ms</comment> total, <comment>%.3f ms</comment> per iteration (%d×)',
+                $warmTotal,
+                $warmPerOp,
+                $iterations,
+            ));
+
+            $throughput = $iterations / ($warmTotal / 1000);
+            $io->text(sprintf('Throughput   : <comment>%.0f</comment> renders/sec', $throughput));
+        } catch (\Throwable $e) {
+            $io->error('Render failed: ' . $e->getMessage());
+
+            return Command::FAILURE;
+        }
 
         $io->newLine();
         $io->success('Benchmark complete.');
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Load and apply the directives file to the given Lexer instance.
+     *
+     * Resolution order:
+     *   1. "directivesFile" field in lex.config.json
+     *   2. lex.directives.php at the project root (auto-discovery)
+     *
+     * The file must return callable(Lexer): void.
+     */
+    private function applyDirectivesFile(Lexer $lexer, ?LexConfig $config, SymfonyStyle $io): void
+    {
+        $file = $config?->directivesFile;
+
+        if ($file === null) {
+            $fallback = rtrim((string) getcwd(), '/\\') . DIRECTORY_SEPARATOR . LexConfig::DIRECTIVES_FILE;
+            $file     = is_file($fallback) ? $fallback : null;
+        }
+
+        if ($file === null) {
+            return;
+        }
+
+        $setup = require $file;
+
+        if (!is_callable($setup)) {
+            $io->warning("Directives file does not return a callable — skipped: {$file}");
+
+            return;
+        }
+
+        $setup($lexer);
+        $io->note('Custom directives loaded from ' . $file);
     }
 }

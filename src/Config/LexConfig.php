@@ -16,9 +16,13 @@ use Wik\Lexer\Exceptions\LexException;
  * Supported fields
  * ────────────────
  * viewPaths        string[]   Directories to search for .lex templates
- * cache            string     Directory for compiled PHP / AST cache
  * production       bool       Enable production / index-build mode
  * sandbox          bool       Enable sandbox mode
+ * directivesFile   string?    PHP file that registers custom directives
+ *                             (relative to project root, or absolute)
+ *
+ * Note: the cache directory is fixed at {projectRoot}/.lexer/ and cannot
+ * be customised in the config file.
  *
  * All path values may be relative (resolved against the config file's
  * own directory) or absolute.
@@ -26,11 +30,27 @@ use Wik\Lexer\Exceptions\LexException;
  * Example lex.config.json
  * ───────────────────────
  * {
- *   "viewPaths":  ["views", "resources/views"],
- *   "cache":      "cache/views",
- *   "production": false,
- *   "sandbox":    false
+ *   "viewPaths":      ["views", "resources/views"],
+ *   "directivesFile": "config/lex-directives.php",
+ *   "production":     false,
+ *   "sandbox":        false
  * }
+ *
+ * Directives file format (config/lex-directives.php)
+ * ───────────────────────────────────────────────────
+ * The file must return a callable with signature:
+ *   function (\Wik\Lexer\Lexer $lexer): void
+ *
+ * Example:
+ *   <?php
+ *   use Wik\Lexer\Lexer;
+ *   return static function (Lexer $lexer): void {
+ *       $lexer->directive('money',    fn($e) => "<?php echo number_format({$e}, 2); ?>");
+ *       $lexer->directive('datetime', fn($e) => "<?php echo date('d/m/Y H:i', {$e}); ?>");
+ *   };
+ *
+ * Auto-discovery: if "directivesFile" is not set, the engine automatically
+ * checks for lex.directives.php at the project root.
  */
 final class LexConfig
 {
@@ -39,18 +59,29 @@ final class LexConfig
     /** Default template file extension (used when not specified in config or CLI) */
     public const DEFAULT_EXTENSION = 'lex';
 
-    /** Default compiled-view cache directory (relative to project root) */
-    public const DEFAULT_CACHE_PATH = 'cache/views';
-
     /** Default view lookup paths (relative to project root) */
     public const DEFAULT_VIEW_PATHS = ['views'];
+
+    /** Cache root directory name (relative to project root, fixed — not user-configurable) */
+    public const CACHE_DIR = '.lexer';
+
+    /**
+     * Well-known directives file name.
+     * Auto-discovered at the project root when "directivesFile" is not set in config.
+     */
+    public const DIRECTIVES_FILE = 'lex.directives.php';
 
     /** @var string[] */
     public readonly array $viewPaths;
 
-    public readonly string $cache;
     public readonly bool   $production;
     public readonly bool   $sandbox;
+
+    /**
+     * Absolute path to the directives file, or null if none is configured
+     * and lex.directives.php does not exist at the project root.
+     */
+    public readonly ?string $directivesFile;
 
     /** Absolute path of the config file that was loaded */
     public readonly string $configFilePath;
@@ -59,16 +90,16 @@ final class LexConfig
     public readonly string $projectRoot;
 
     private function __construct(
-        array  $viewPaths,
-        string $cache,
-        bool   $production,
-        bool   $sandbox,
-        string $configFilePath,
+        array   $viewPaths,
+        bool    $production,
+        bool    $sandbox,
+        ?string $directivesFile,
+        string  $configFilePath,
     ) {
         $this->viewPaths      = $viewPaths;
-        $this->cache          = $cache;
         $this->production     = $production;
         $this->sandbox        = $sandbox;
+        $this->directivesFile = $directivesFile;
         $this->configFilePath = $configFilePath;
         $this->projectRoot    = dirname($configFilePath);
     }
@@ -121,9 +152,9 @@ final class LexConfig
 
         return new self(
             viewPaths:      self::resolvePaths($data['viewPaths'] ?? self::DEFAULT_VIEW_PATHS, $dir),
-            cache:          self::resolvePath($data['cache']      ?? self::DEFAULT_CACHE_PATH, $dir),
             production:     (bool) ($data['production'] ?? false),
             sandbox:        (bool) ($data['sandbox']    ?? false),
+            directivesFile: self::resolveDirectivesFile($data['directivesFile'] ?? null, $dir),
             configFilePath: realpath($filePath) ?: $filePath,
         );
     }
@@ -165,6 +196,27 @@ final class LexConfig
 
             $dir = $parent;
         }
+    }
+
+    /**
+     * Resolve the directives file path.
+     *
+     * If $value is given in config, resolve it relative to $base.
+     * Otherwise auto-discover lex.directives.php at the project root.
+     * Returns null if neither exists.
+     */
+    private static function resolveDirectivesFile(?string $value, string $base): ?string
+    {
+        if ($value !== null) {
+            $resolved = self::resolvePath($value, $base);
+
+            return is_file($resolved) ? $resolved : null;
+        }
+
+        // Auto-discover
+        $fallback = $base . DIRECTORY_SEPARATOR . self::DIRECTIVES_FILE;
+
+        return is_file($fallback) ? $fallback : null;
     }
 
     /**

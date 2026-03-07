@@ -27,7 +27,7 @@ use Wik\Lexer\Support\DirectiveRegistry;
  * Quick start:
  *
  *   $lex = Lexer::fromConfig();
- *   
+ *
  *   // Register a custom directive
  *   $lexer->directive('datetime', fn(string $expr) => "<?php echo date('Y-m-d H:i:s', (int)({$expr})); ?>");
  *
@@ -35,6 +35,10 @@ use Wik\Lexer\Support\DirectiveRegistry;
  *   $lexer->component('Alert', __DIR__ . '/views/components/alert.lex');
  *
  *   echo $lexer->render('home', ['title' => 'Welcome']);
+ *
+ * Cache layout (fixed, not user-configurable):
+ *   {projectRoot}/.lexer/compiled/{hash}.php  — compiled PHP files
+ *   {projectRoot}/.lexer/ast/{hash}.ast        — serialised AST snapshots
  *
  * The engine is framework-agnostic.  Integrate it with any PHP project by
  * simply calling render() with the template name and data.
@@ -46,9 +50,9 @@ final class Lexer
     private ComponentManager $componentManager;
     private ?ViewEngine $engine = null;
 
-    private array $viewPaths       = [];
-    private ?string $cachePath     = null;
-    private bool $production       = false;
+    private array $viewPaths          = [];
+    private string $projectRoot       = '';
+    private bool $production          = false;
     private ?SandboxConfig $sandboxConfig = null;
     private ?EscaperInterface $escaper    = null;
 
@@ -78,6 +82,9 @@ final class Lexer
      *       ->directive('money', fn($e) => "<?php echo money_format($e); ?>")
      *       ->setEscaper(new MyEscaper());
      *
+     * The .lexer/ cache directory is automatically placed at the project root
+     * (the directory containing lex.config.json).
+     *
      * @param  string $startDir  Directory to start searching from (default: cwd)
      * @throws \Wik\Lexer\Exceptions\LexException  If no lex.config.json is found
      */
@@ -87,7 +94,7 @@ final class Lexer
 
         $lexer = new static();
         $lexer->paths($config->viewPaths);
-        $lexer->cache($config->cache);
+        $lexer->projectRoot = $config->projectRoot;
 
         if ($config->production) {
             $lexer->setProduction();
@@ -124,17 +131,6 @@ final class Lexer
     {
         $this->viewPaths[] = $path;
         $this->engine      = null;
-
-        return $this;
-    }
-
-    /**
-     * Set the directory where compiled PHP files and AST caches are stored.
-     */
-    public function cache(string $path): static
-    {
-        $this->cachePath = $path;
-        $this->engine    = null;
 
         return $this;
     }
@@ -211,8 +207,9 @@ final class Lexer
      * Enable production mode.
      *
      * In production mode the engine maintains a precompiled view index
-     * (cache/index.php) and skips source-level file checks on every request.
-     * Enable this after a warm-up compile step in your deployment pipeline.
+     * (.lexer/compiled/index.php) and skips source-level file checks on
+     * every request.  Enable this after a warm-up compile step in your
+     * deployment pipeline.
      */
     public function setProduction(bool $production = true): static
     {
@@ -270,8 +267,8 @@ final class Lexer
      * @param  string               $name  Template name (dot notation supported)
      * @param  array<string, mixed> $data  Variables made available in the template
      *
-     * @throws ViewException  if view paths or cache path are not configured,
-     *                        or if the template cannot be found
+     * @throws ViewException  if view paths are not configured or the template
+     *                        cannot be found
      */
     public function render(string $name, array $data = []): string
     {
@@ -360,22 +357,33 @@ final class Lexer
      */
     private function buildCompiler(?callable $depResolver = null): Compiler
     {
-        if ($this->cachePath === null) {
-            throw ViewException::noCacheDirectory();
-        }
+        $lexerDir = $this->resolveLexerDir();
 
         $depGraph = $depResolver !== null
-            ? new DependencyGraph($this->cachePath)
+            ? new DependencyGraph($lexerDir)
             : null;
 
         return new Compiler(
             $this->registry,
-            new FileCache($this->cachePath),
+            new FileCache($lexerDir),
             $this->production,
             $this->sandboxConfig,
             new OptimizePass(),
             $depGraph,
             $depResolver,
         );
+    }
+
+    /**
+     * Return the absolute path to the .lexer/ cache root.
+     *
+     * Defaults to {cwd}/.lexer when no project root has been set
+     * (e.g. when using the fluent API without lex.config.json).
+     */
+    private function resolveLexerDir(): string
+    {
+        $root = $this->projectRoot ?: (string) getcwd();
+
+        return rtrim($root, '/\\') . DIRECTORY_SEPARATOR . LexConfig::CACHE_DIR;
     }
 }

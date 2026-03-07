@@ -10,13 +10,16 @@ use Wik\Lexer\Exceptions\CompilerException;
 /**
  * File-system backed template cache.
  *
- * Compiled PHP files are stored as {cacheDirectory}/{hash}.php where the
- * hash is derived from the cache key.  Writes are atomic (write to a temp
- * file, then rename) so concurrent requests cannot read a partially written
- * cache file.
+ * The cache lives inside the project's .lexer/ directory:
+ *   .lexer/compiled/{md5(key)}.php  — compiled PHP files
+ *   .lexer/ast/{md5(key)}.ast       — serialised AST snapshots
  *
- * Index file ({cacheDirectory}/index.php) maps template paths to compiled
- * file paths and is used in production mode to skip source-level checks.
+ * Writes are atomic (write to a temp file, then rename) so concurrent
+ * requests cannot read a partially-written cache file.
+ *
+ * The precompiled index (.lexer/compiled/index.php) maps template paths
+ * to compiled file paths and is used in production mode to skip all
+ * source-level I/O per request.
  */
 final class FileCache implements CacheInterface
 {
@@ -25,8 +28,11 @@ final class FileCache implements CacheInterface
     /** @var array<string, string> template-path => compiled-path */
     private array $index = [];
 
+    /**
+     * @param string $baseDir  Absolute path to the .lexer/ root directory.
+     */
     public function __construct(
-        private readonly string $directory,
+        private readonly string $baseDir,
     ) {
     }
 
@@ -36,9 +42,7 @@ final class FileCache implements CacheInterface
 
     public function has(string $key): bool
     {
-        $path = $this->compiledPath($key);
-
-        return file_exists($path);
+        return file_exists($this->compiledPath($key));
     }
 
     public function path(string $key): ?string
@@ -50,7 +54,7 @@ final class FileCache implements CacheInterface
 
     public function put(string $key, string $compiledContent): string
     {
-        $this->ensureDirectory();
+        $this->ensureCompiledDir();
 
         $path = $this->compiledPath($key);
 
@@ -72,23 +76,25 @@ final class FileCache implements CacheInterface
 
     public function flush(): void
     {
-        if (!is_dir($this->directory)) {
-            return;
-        }
-
-        $files = glob($this->directory . DIRECTORY_SEPARATOR . '*.php');
-
-        if ($files !== false) {
-            foreach ($files as $file) {
-                @unlink($file);
+        // Clear compiled PHP files
+        $compiledDir = $this->compiledDir();
+        if (is_dir($compiledDir)) {
+            $files = glob($compiledDir . DIRECTORY_SEPARATOR . '*.php');
+            if ($files !== false) {
+                foreach ($files as $file) {
+                    @unlink($file);
+                }
             }
         }
 
-        $astFiles = glob($this->directory . DIRECTORY_SEPARATOR . '*.ast');
-
-        if ($astFiles !== false) {
-            foreach ($astFiles as $file) {
-                @unlink($file);
+        // Clear serialised AST files
+        $astDir = $this->astDir();
+        if (is_dir($astDir)) {
+            $files = glob($astDir . DIRECTORY_SEPARATOR . '*.ast');
+            if ($files !== false) {
+                foreach ($files as $file) {
+                    @unlink($file);
+                }
             }
         }
 
@@ -98,7 +104,7 @@ final class FileCache implements CacheInterface
 
     public function getDirectory(): string
     {
-        return $this->directory;
+        return $this->baseDir;
     }
 
     /**
@@ -175,36 +181,54 @@ final class FileCache implements CacheInterface
     // AST helpers
     // -----------------------------------------------------------------------
 
+    /**
+     * Return the absolute path where the serialised AST for $key is stored.
+     * Location: .lexer/ast/{md5(key)}.ast
+     */
     public function astPath(string $key): string
     {
-        return $this->directory . DIRECTORY_SEPARATOR . md5($key) . '.ast';
+        return $this->astDir() . DIRECTORY_SEPARATOR . md5($key) . '.ast';
     }
 
     // -----------------------------------------------------------------------
     // Internal helpers
     // -----------------------------------------------------------------------
 
-    private function compiledPath(string $key): string
+    /** Absolute path to the .lexer/compiled/ subdirectory. */
+    private function compiledDir(): string
     {
-        return $this->directory . DIRECTORY_SEPARATOR . md5($key) . '.php';
+        return $this->baseDir . DIRECTORY_SEPARATOR . 'compiled';
     }
 
-    private function ensureDirectory(): void
+    /** Absolute path to the .lexer/ast/ subdirectory. */
+    private function astDir(): string
     {
-        if (!is_dir($this->directory)) {
-            if (!mkdir($this->directory, 0755, true) && !is_dir($this->directory)) {
-                throw CompilerException::cacheDirectoryNotWritable($this->directory);
+        return $this->baseDir . DIRECTORY_SEPARATOR . 'ast';
+    }
+
+    private function compiledPath(string $key): string
+    {
+        return $this->compiledDir() . DIRECTORY_SEPARATOR . md5($key) . '.php';
+    }
+
+    private function ensureCompiledDir(): void
+    {
+        $dir = $this->compiledDir();
+
+        if (!is_dir($dir)) {
+            if (!mkdir($dir, 0755, true) && !is_dir($dir)) {
+                throw CompilerException::cacheDirectoryNotWritable($dir);
             }
         }
 
-        if (!is_writable($this->directory)) {
-            throw CompilerException::cacheDirectoryNotWritable($this->directory);
+        if (!is_writable($dir)) {
+            throw CompilerException::cacheDirectoryNotWritable($dir);
         }
     }
 
     private function indexPath(): string
     {
-        return $this->directory . DIRECTORY_SEPARATOR . 'index.php';
+        return $this->compiledDir() . DIRECTORY_SEPARATOR . 'index.php';
     }
 
     private function loadIndex(): void
@@ -229,7 +253,7 @@ final class FileCache implements CacheInterface
 
     private function saveIndex(): void
     {
-        $this->ensureDirectory();
+        $this->ensureCompiledDir();
 
         $exports = var_export($this->index, true);
         $content = "<?php\n\n// Wik/Lexer precompiled view index — do not edit.\n\nreturn {$exports};\n";

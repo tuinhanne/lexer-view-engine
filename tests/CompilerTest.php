@@ -24,13 +24,21 @@ final class CompilerTest extends TestCase
 
     protected function tearDown(): void
     {
-        // Clean up cache directory
-        if (is_dir($this->cacheDir)) {
-            foreach (glob($this->cacheDir . '/*') ?: [] as $file) {
-                unlink($file);
-            }
-            rmdir($this->cacheDir);
+        // Clean up the .lexer/ base dir and its compiled/ and ast/ subdirectories
+        $this->removeDir($this->cacheDir);
+    }
+
+    private function removeDir(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
         }
+
+        foreach (glob($dir . '/*') ?: [] as $entry) {
+            is_dir($entry) ? $this->removeDir($entry) : unlink($entry);
+        }
+
+        rmdir($dir);
     }
 
     // -----------------------------------------------------------------------

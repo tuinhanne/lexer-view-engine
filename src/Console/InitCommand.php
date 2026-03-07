@@ -21,10 +21,8 @@ use Wik\Lexer\Config\LexConfig;
  *   lex init --force          # overwrite existing file
  *   lex init --no-vscode      # skip .vscode/settings.json
  *
- * The command is interactive: it asks for view paths and cache dir, then
- * writes lex.config.json.  It also optionally writes (or merges)
- * .vscode/settings.json so the LSP extension picks up the same paths
- * without any extra configuration.
+ * The compiled template cache is automatically placed at {projectRoot}/.lexer/
+ * and requires no configuration.
  */
 #[AsCommand(name: 'init', description: 'Create a lex.config.json in your project root')]
 final class InitCommand extends Command
@@ -67,17 +65,11 @@ final class InitCommand extends Command
         // ── Gather values ─────────────────────────────────────────────────────
         if ($defaults) {
             $viewPathsRaw = 'views,resources/views';
-            $cache        = LexConfig::DEFAULT_CACHE_PATH;
         } else {
             $viewPathsRaw = $io->ask(
                 'View paths (comma-separated, relative to project root)',
                 'views,resources/views',
             ) ?? 'views,resources/views';
-
-            $cache = $io->ask(
-                'Cache directory',
-                LexConfig::DEFAULT_CACHE_PATH,
-            ) ?? LexConfig::DEFAULT_CACHE_PATH;
         }
 
         $viewPaths = array_values(array_filter(
@@ -87,7 +79,6 @@ final class InitCommand extends Command
         // ── Write lex.config.json ─────────────────────────────────────────────
         $config = [
             'viewPaths'  => $viewPaths,
-            'cache'      => $cache,
             'production' => false,
             'sandbox'    => false,
         ];
@@ -112,6 +103,7 @@ final class InitCommand extends Command
         $io->listing([
             'Review <comment>' . LexConfig::FILE_NAME . '</comment> and adjust paths if needed.',
             'Run <comment>lex compile</comment> to pre-compile all templates.',
+            'Compiled files will appear in <comment>.lexer/compiled/</comment>.',
             'The Lex LSP extension will automatically pick up <comment>' . LexConfig::FILE_NAME . '</comment>.',
         ]);
 
