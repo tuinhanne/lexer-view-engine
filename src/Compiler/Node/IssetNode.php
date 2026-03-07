@@ -42,4 +42,10 @@ final class IssetNode extends Node
     {
         return $this->line;
     }
+
+    /** @return Node[] */
+    public function getChildren(): array
+    {
+        return $this->children;
+    }
 }

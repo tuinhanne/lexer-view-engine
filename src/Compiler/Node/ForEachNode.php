@@ -69,4 +69,10 @@ final class ForEachNode extends Node
 
         return null;
     }
+
+    /** @return Node[] */
+    public function getChildren(): array
+    {
+        return $this->children;
+    }
 }

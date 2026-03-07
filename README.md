@@ -13,6 +13,7 @@ composer require wik/lexer
 
 - **AST compilation pipeline** — Lexer → Parser → Validator → Optimizer → PHP file
 - **File cache** with atomic writes; production-mode precompiled index
+- **Dependency graph cache** — automatically invalidates compiled templates when a layout, partial, or component they depend on changes
 - **Layout inheritance** — `#extends`, `#section`, `#yield`, `#parent`
 - **Components** — PascalCase tags, named slots, dynamic props, class mounting
 - **`$loop` variable** — full metadata inside every `#foreach`
@@ -692,6 +693,90 @@ $lexer->setProduction();          // enable
 
 ---
 
+## Dependency Graph Cache
+
+Lex maintains a dependency graph so that when a shared template changes, every
+template that imports it is automatically recompiled on the next request —
+without you touching any code.
+
+### How it works
+
+When a template is compiled for the first time, Lex walks its AST and records
+every static dependency it finds:
+
+| Source | Tracked as |
+|--------|-----------|
+| `#extends('layouts.app')` | layout dependency |
+| `#include('partials.header')` | include dependency |
+| `#includeIf` / `#includeWhen` / `#includeFirst` | include dependencies (static string args only) |
+| `<Card />`, `<Alert>` | component tag dependency |
+
+The graph is persisted to `{cacheDir}/view_dependencies.json`:
+
+```json
+{
+  "/abs/views/pages/home.lex": {
+    "/abs/views/layouts/app.lex": 1712000000,
+    "/abs/views/partials/header.lex": 1712000001
+  },
+  "/abs/views/pages/about.lex": {
+    "/abs/views/layouts/app.lex": 1712000000
+  }
+}
+```
+
+Keys are absolute template paths; nested keys are absolute dependency paths;
+values are the Unix timestamps (`filemtime`) recorded at compile time.
+
+### Invalidation flow
+
+```
+header.lex modified  (mtime changes)
+         │
+         ▼
+Next render of home.lex
+  → isStale('home.lex') checks header.lex mtime  → changed!
+  → compiled cache for home.lex is cleared
+  → full recompile runs
+  → dependency graph is updated with new mtime
+```
+
+Dynamic include expressions (e.g. `#include($varName)`) cannot be statically
+resolved and are silently skipped — only string literals are tracked.
+
+### Cache clear
+
+`lex cache:clear` also removes `view_dependencies.json`, forcing a clean slate
+on the next compile run:
+
+```bash
+vendor/bin/lex cache:clear ./storage/cache/views
+```
+
+### Querying the graph (tooling / advanced use)
+
+```php
+use Wik\Lexer\Cache\DependencyGraph;
+
+$graph = new DependencyGraph('/path/to/cache');
+
+// Which templates does home.lex depend on?
+$graph->getDeps('/abs/views/pages/home.lex');
+// → ['/abs/views/layouts/app.lex' => 1712000000, ...]
+
+// Which templates depend on header.lex?
+$graph->getDependents('/abs/views/partials/header.lex');
+// → ['/abs/views/pages/home.lex', '/abs/views/pages/about.lex']
+
+// Is home.lex stale (any dep mtime changed)?
+$graph->isStale('/abs/views/pages/home.lex');  // bool
+
+// Full forward map
+$graph->all();
+```
+
+---
+
 ## Exceptions
 
 | Exception | When |
@@ -711,26 +796,33 @@ $lexer->setProduction();          // enable
 Template source
     │
     ▼
-Lexer           character-by-character tokenizer (no regex structural parsing)
+Lexer              character-by-character tokenizer (no regex structural parsing)
     │  Token[]
     ▼
-Parser          explicit stack → nested AST
+Parser             explicit stack → nested AST
     │  Node[]
     ▼
-AstValidator    sandbox enforcement, structural checks (optional)
+DependencyGraph    walk AST → record #extends / #include / component deps + mtimes
     │  Node[]
     ▼
-OptimizePass    merge adjacent TextNodes, remove empty nodes (optional)
+AstValidator       sandbox enforcement, structural checks (optional)
     │  Node[]
     ▼
-Code generation Node::compile() → PHP source string
+OptimizePass       merge adjacent TextNodes, remove empty nodes (optional)
+    │  Node[]
+    ▼
+Code generation    Node::compile() → PHP source string
     │  string
     ▼
-FileCache       atomic write → {cacheDir}/{md5(source)}.php
+FileCache          atomic write → {cacheDir}/{md5(key)}.php
     │  path
     ▼
-include()       executed in isolated scope with $__env injected
+include()          executed in isolated scope with $__env injected
 ```
+
+**On subsequent requests:** before hitting the cache, `DependencyGraph::isStale()` checks
+whether any recorded dependency has a changed `filemtime`. If stale, the compiled cache
+is cleared before the pipeline runs — ensuring the template is always up to date.
 
 ---
 

@@ -7,7 +7,15 @@
       "Bash(unzip -l lex-template-0.0.4.vsix)",
       "Bash(npm install --save-dev esbuild)",
       "Bash(node build.js --production)",
-      "Bash(npx @vscode/vsce package --no-dependencies)"
+      "Bash(npx @vscode/vsce package --no-dependencies)",
+      "Bash(./vendor/bin/phpunit tests/DependencyGraphTest.php --colors=never)",
+      "Bash(composer install --no-interaction)",
+      "Bash(php -v)",
+      "Bash(ls /c/php* /d/php* /f/php*)",
+      "Read(//f//**)",
+      "Bash(powershell.exe -Command \"Get-Command php -ErrorAction SilentlyContinue | Select-Object Source\")",
+      "Bash(powershell.exe -Command \"Get-Command php,composer,phpunit 2>$null | Select-Object Name,Source | Format-Table -AutoSize\")",
+      "Bash(powershell.exe -Command \"Get-Command php -ErrorAction SilentlyContinue | Select Source\")"
     ]
   }
 }

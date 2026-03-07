@@ -36,4 +36,10 @@ final class WhileNode extends Node
 
         return $out;
     }
+
+    /** @return Node[] */
+    public function getChildren(): array
+    {
+        return $this->children;
+    }
 }

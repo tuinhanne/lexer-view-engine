@@ -45,4 +45,21 @@ abstract class Node
     {
         return 0;
     }
+
+    /**
+     * Return all direct child nodes across every branch of this node.
+     *
+     * Container nodes (IfNode, ForEachNode, SectionNode, ComponentNode, …)
+     * override this to expose their children for recursive AST traversal —
+     * for example, static dependency extraction in the Compiler.
+     *
+     * Leaf nodes (TextNode, EchoNode, DirectiveNode, …) keep the default
+     * empty-array return value.
+     *
+     * @return Node[]
+     */
+    public function getChildren(): array
+    {
+        return [];
+    }
 }

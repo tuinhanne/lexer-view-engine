@@ -29,4 +29,10 @@ final class SectionNode extends Node
 
         return $out;
     }
+
+    /** @return Node[] */
+    public function getChildren(): array
+    {
+        return $this->children;
+    }
 }

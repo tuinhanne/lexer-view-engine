@@ -101,6 +101,34 @@ final class FileCache implements CacheInterface
         return $this->directory;
     }
 
+    /**
+     * Forget the compiled PHP and AST files for a template given its absolute path.
+     *
+     * Reconstructs the cache key from the template's current filemtime (the same
+     * key that was used when the template was last compiled) and deletes the
+     * corresponding .php and .ast cache files.
+     *
+     * No-op if the file does not exist on disk or has no matching cache entries.
+     */
+    public function forgetCompiledByPath(string $templateAbsPath): void
+    {
+        $mtime = @filemtime($templateAbsPath);
+
+        if ($mtime === false) {
+            return;
+        }
+
+        $key = md5($templateAbsPath . ':' . $mtime);
+
+        $this->forget($key);
+
+        $astPath = $this->astPath($key);
+
+        if (file_exists($astPath)) {
+            @unlink($astPath);
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Precompiled index (production mode)
     // -----------------------------------------------------------------------

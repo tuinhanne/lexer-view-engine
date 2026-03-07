@@ -11,6 +11,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Wik\Lexer\Cache\DependencyGraph;
 use Wik\Lexer\Cache\FileCache;
 
 /**
@@ -49,6 +50,7 @@ final class CacheClearCommand extends Command
             $io->success('Precompiled view index cleared.');
         } else {
             $cache->flush();
+            (new DependencyGraph($cacheDir))->flush();
             $io->success("Cache cleared: {$cacheDir}");
         }
 

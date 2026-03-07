@@ -47,4 +47,24 @@ final class IfNode extends Node
 
         return $out;
     }
+
+    /** @return Node[] */
+    public function getChildren(): array
+    {
+        $all = $this->children;
+
+        foreach ($this->elseifBranches as $branch) {
+            foreach ($branch['children'] as $child) {
+                $all[] = $child;
+            }
+        }
+
+        if ($this->elseChildren !== null) {
+            foreach ($this->elseChildren as $child) {
+                $all[] = $child;
+            }
+        }
+
+        return $all;
+    }
 }

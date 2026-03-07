@@ -69,4 +69,18 @@ final class SwitchNode extends Node
 
         return $out;
     }
+
+    /** @return Node[] */
+    public function getChildren(): array
+    {
+        $all = [];
+
+        foreach ($this->cases as $case) {
+            foreach ($case['children'] as $child) {
+                $all[] = $child;
+            }
+        }
+
+        return $all;
+    }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Wik\Lexer\Compiler;
 
+use Wik\Lexer\Cache\DependencyGraph;
 use Wik\Lexer\Cache\FileCache;
 use Wik\Lexer\Compiler\Node\BreakNode;
 use Wik\Lexer\Compiler\Node\CheckEmptyNode;
@@ -94,6 +95,9 @@ final class Compiler
         private readonly bool $production = false,
         private readonly ?SandboxConfig $sandboxConfig = null,
         private readonly ?OptimizePass $optimizer = null,
+        private readonly ?DependencyGraph $depGraph = null,
+        /** @var (callable(string): ?string)|null */
+        private readonly mixed $depResolver = null,
     ) {
         $this->lexer  = new Lexer();
         $this->parser = new Parser($registry);
@@ -125,6 +129,18 @@ final class Compiler
     {
         // An explicit key takes priority; fall back to the source string itself
         $key = $cacheKey !== '' ? $cacheKey : $source;
+
+        // Dependency graph: if any recorded dependency has changed since this
+        // template was last compiled, clear its compiled and AST caches so that
+        // the full pipeline runs again below.  This check must come BEFORE the
+        // production-index lookup so stale caches are never served in production.
+        if ($this->depGraph !== null && $templatePath !== '' && $this->depGraph->isStale($templatePath)) {
+            $this->cache->forget($key);
+            $staleAst = $this->cache->astPath($key);
+            if (file_exists($staleAst)) {
+                @unlink($staleAst);
+            }
+        }
 
         // Production mode: check precompiled index first (no source-level I/O)
         if ($this->production) {
@@ -169,6 +185,11 @@ final class Compiler
         // Full pipeline: lex → parse → (validate) → (optimize) → write
         $tokens = $this->lexer->tokenize($source);
         $nodes  = $this->parser->parse($tokens);
+
+        // Record static dependencies before the optimizer may strip nodes
+        if ($this->depGraph !== null && $templatePath !== '') {
+            $this->recordDependencies($templatePath, $nodes);
+        }
 
         // AST validation (sandbox mode / structural constraints)
         if ($this->sandboxConfig !== null) {
@@ -319,6 +340,106 @@ final class Compiler
         }
 
         return rename($tmp, $path);
+    }
+
+    // -----------------------------------------------------------------------
+    // Dependency graph helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Walk the AST, collect all statically-resolvable dependency view names,
+     * resolve each to an absolute path, and persist to the dependency graph.
+     *
+     * Only runs when both $depGraph and $depResolver are set.
+     *
+     * @param Node[] $nodes
+     */
+    private function recordDependencies(string $templatePath, array $nodes): void
+    {
+        if ($this->depResolver === null) {
+            return;
+        }
+
+        $names          = $this->extractDepNames($nodes);
+        $depsWithMtimes = [];
+
+        foreach ($names as $name) {
+            $absPath = ($this->depResolver)($name);
+
+            if ($absPath !== null && file_exists($absPath)) {
+                $mtime = @filemtime($absPath);
+
+                if ($mtime !== false) {
+                    $depsWithMtimes[$absPath] = $mtime;
+                }
+            }
+        }
+
+        $this->depGraph->record($templatePath, $depsWithMtimes);
+    }
+
+    /**
+     * Recursively walk an AST node array and return all statically-resolvable
+     * dependency view names.
+     *
+     * Collects:
+     *   - ExtendsNode::$layout   — always a static string
+     *   - IncludeNode::$expression — extracts string literals (skips dynamic exprs)
+     *   - ComponentNode::$name   — static tag name (skip internal 'slot' nodes)
+     *
+     * All container nodes are recursed via Node::getChildren() so dependencies
+     * nested inside #if / #foreach / #section / etc. are also captured.
+     *
+     * @param  Node[] $nodes
+     * @return string[]
+     */
+    private function extractDepNames(array $nodes): array
+    {
+        $names = [];
+
+        foreach ($nodes as $node) {
+            if ($node instanceof ExtendsNode) {
+                if ($node->layout !== '') {
+                    $names[] = $node->layout;
+                }
+            } elseif ($node instanceof IncludeNode) {
+                foreach ($this->extractStringsFromExpr($node->expression) as $name) {
+                    $names[] = $name;
+                }
+            } elseif ($node instanceof ComponentNode && $node->name !== '' && $node->name !== 'slot') {
+                $names[] = $node->name;
+            }
+
+            // Recurse into all child nodes (if/foreach/section/component/push/…)
+            $children = $node->getChildren();
+
+            if (!empty($children)) {
+                foreach ($this->extractDepNames($children) as $name) {
+                    $names[] = $name;
+                }
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * Extract static single- or double-quoted string literals from a raw
+     * template expression string.
+     *
+     * Examples:
+     *   "'partials.header'"             → ['partials.header']
+     *   "'nav', ['user' => \$u]"        → ['nav']
+     *   "['custom.nav', 'nav']"         → ['custom.nav', 'nav']   (#includeFirst)
+     *   "\$dynamic"                     → []
+     *
+     * @return string[]
+     */
+    private function extractStringsFromExpr(string $expr): array
+    {
+        preg_match_all('/(?<![\\\\])[\'"]([^\'"\\\\]+)[\'"]/', $expr, $matches);
+
+        return $matches[1] ?? [];
     }
 
     /**

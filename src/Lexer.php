@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Wik\Lexer;
 
+use Wik\Lexer\Cache\DependencyGraph;
 use Wik\Lexer\Cache\FileCache;
 use Wik\Lexer\Compiler\Compiler;
 use Wik\Lexer\Compiler\OptimizePass;
@@ -329,11 +330,14 @@ final class Lexer
             throw ViewException::noViewPaths();
         }
 
-        $compiler = $this->buildCompiler();
-
         // FileLoader is the single source of truth for path resolution and
         // mtime-based cache keys — ViewEngine delegates all lookups to it.
         $loader = new FileLoader($this->viewPaths);
+
+        // Pass the loader's path resolver into the compiler so the dependency
+        // graph can record resolved absolute paths for each view name found in
+        // #extends / #include / component tags.
+        $compiler = $this->buildCompiler(fn(string $name): ?string => $loader->getPath($name));
 
         // Convention: auto-register the `components` subdirectory of every view
         // path so components are discovered without any extra configuration.
@@ -348,11 +352,21 @@ final class Lexer
         return new ViewEngine($compiler, $this->sectionManager, $this->componentManager, $loader, $this->escaper);
     }
 
-    private function buildCompiler(): Compiler
+    /**
+     * @param (callable(string): ?string)|null $depResolver
+     *   Maps a view name to its absolute file path.  Supplied by buildEngine()
+     *   when constructing the compiler with dependency-graph support.
+     *   When null (e.g. getCompiler() called standalone), dep tracking is skipped.
+     */
+    private function buildCompiler(?callable $depResolver = null): Compiler
     {
         if ($this->cachePath === null) {
             throw ViewException::noCacheDirectory();
         }
+
+        $depGraph = $depResolver !== null
+            ? new DependencyGraph($this->cachePath)
+            : null;
 
         return new Compiler(
             $this->registry,
@@ -360,6 +374,8 @@ final class Lexer
             $this->production,
             $this->sandboxConfig,
             new OptimizePass(),
+            $depGraph,
+            $depResolver,
         );
     }
 }
