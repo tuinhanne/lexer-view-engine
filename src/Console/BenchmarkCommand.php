@@ -24,8 +24,9 @@ use Wik\Lexer\Lexer;
  * The cache is automatically placed in {projectRoot}/.lexer/ (derived
  * from lex.config.json or cwd when no config is present).
  *
- * Custom directives are loaded automatically from lex.directives.php at
- * the project root (or "directivesFile" in lex.config.json) — no flags needed.
+ * Templates that use custom directives must be pre-compiled first
+ * (run `lex compile` in a bootstrap that registers the directives).
+ * Once pre-compiled the benchmark reads directly from the compiled cache.
  *
  * For true cold-compile measurements, clear the cache first:
  *   lex cache:clear && lex benchmark home
@@ -79,11 +80,6 @@ final class BenchmarkCommand extends Command
             $lexer = (new Lexer())->paths($paths);
         }
 
-        // Load custom directives automatically from lex.directives.php
-        // (or "directivesFile" in lex.config.json) so templates with
-        // custom directives can be compiled/rendered by the CLI.
-        $this->applyDirectivesFile($lexer, $config, $io);
-
         $io->title('Wik/Lexer — Benchmark');
         $io->text("Template  : {$template}");
         $io->text("Iterations: {$iterations}");
@@ -95,9 +91,10 @@ final class BenchmarkCommand extends Command
         $source   = (string) file_get_contents($filePath);
 
         // --- Phase 1: Compile (cache-check + compile if not yet cached) ---
-        // We do NOT force a recompile here because templates with custom
-        // directives require the application's directive registration.
-        // For a true cold-compile measurement, run:  lex cache:clear && lex benchmark <template>
+        // We do NOT force a recompile here because templates that use custom
+        // directives (registered programmatically in application code) cannot
+        // be re-parsed by the CLI.  If you need a true cold-compile measurement,
+        // clear the cache first:  lex cache:clear && lex benchmark <template>
         try {
             $t0          = hrtime(true);
             $compiler->compile($source, $filePath);
@@ -105,7 +102,12 @@ final class BenchmarkCommand extends Command
 
             $io->text(sprintf('Compile      : <comment>%.3f ms</comment>', $compileTime));
         } catch (\Throwable $e) {
-            $io->error('Compilation failed: ' . $e->getMessage());
+            $io->error([
+                'Compilation failed: ' . $e->getMessage(),
+                '',
+                'Templates that use custom directives must be pre-compiled before benchmarking.',
+                'Run "lex compile" in a bootstrap that registers all directives, then retry.',
+            ]);
 
             return Command::FAILURE;
         }
@@ -126,6 +128,7 @@ final class BenchmarkCommand extends Command
                 $iterations,
             ));
 
+            // --- Throughput ---
             $throughput = $iterations / ($warmTotal / 1000);
             $io->text(sprintf('Throughput   : <comment>%.0f</comment> renders/sec', $throughput));
         } catch (\Throwable $e) {
@@ -138,39 +141,5 @@ final class BenchmarkCommand extends Command
         $io->success('Benchmark complete.');
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * Load and apply the directives file to the given Lexer instance.
-     *
-     * Resolution order:
-     *   1. "directivesFile" field in lex.config.json
-     *   2. lex.directives.php at the project root (auto-discovery)
-     *
-     * The file must return callable(Lexer): void.
-     */
-    private function applyDirectivesFile(Lexer $lexer, ?LexConfig $config, SymfonyStyle $io): void
-    {
-        $file = $config?->directivesFile;
-
-        if ($file === null) {
-            $fallback = rtrim((string) getcwd(), '/\\') . DIRECTORY_SEPARATOR . LexConfig::DIRECTIVES_FILE;
-            $file     = is_file($fallback) ? $fallback : null;
-        }
-
-        if ($file === null) {
-            return;
-        }
-
-        $setup = require $file;
-
-        if (!is_callable($setup)) {
-            $io->warning("Directives file does not return a callable — skipped: {$file}");
-
-            return;
-        }
-
-        $setup($lexer);
-        $io->note('Custom directives loaded from ' . $file);
     }
 }

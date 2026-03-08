@@ -14,9 +14,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Wik\Lexer\Cache\FileCache;
 use Wik\Lexer\Compiler\AstValidator;
 use Wik\Lexer\Compiler\Compiler;
+use Wik\Lexer\Compiler\OptimizePass;
 use Wik\Lexer\Config\LexConfig;
 use Wik\Lexer\Exceptions\TemplateSyntaxException;
-use Wik\Lexer\Lexer;
 use Wik\Lexer\Security\ExpressionValidator;
 use Wik\Lexer\Security\SandboxConfig;
 use Wik\Lexer\Support\DirectiveRegistry;
@@ -82,16 +82,8 @@ final class ValidateCommand extends Command
         $root     = $config?->projectRoot ?? (string) getcwd();
         $lexerDir = rtrim($root, '/\\') . DIRECTORY_SEPARATOR . LexConfig::CACHE_DIR;
 
-        // Load custom directives so the parser recognises them during validation.
-        // Uses the same resolution order as CompileCommand / BenchmarkCommand:
-        //   1. "directivesFile" in lex.config.json
-        //   2. lex.directives.php at the project root (auto-discovery)
-        $tempLexer = new Lexer();
-        $this->applyDirectivesFile($tempLexer, $config, $io);
-        $registry = $tempLexer->getRegistry();
-
         $compiler = new Compiler(
-            $registry,
+            new DirectiveRegistry(),
             new FileCache($lexerDir),
             false,
             $sandboxConfig,
@@ -141,39 +133,6 @@ final class ValidateCommand extends Command
         $io->success('All ' . count($files) . ' template(s) passed validation.');
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * Load and apply the directives file to the given Lexer instance.
-     *
-     * Resolution order:
-     *   1. "directivesFile" field in lex.config.json
-     *   2. lex.directives.php at the project root (auto-discovery)
-     *
-     * The file must return callable(Lexer): void.
-     */
-    private function applyDirectivesFile(Lexer $lexer, ?LexConfig $config, SymfonyStyle $io): void
-    {
-        $file = $config?->directivesFile;
-
-        if ($file === null) {
-            $fallback = rtrim((string) getcwd(), '/\\') . DIRECTORY_SEPARATOR . LexConfig::DIRECTIVES_FILE;
-            $file     = is_file($fallback) ? $fallback : null;
-        }
-
-        if ($file === null) {
-            return;
-        }
-
-        $setup = require $file;
-
-        if (!is_callable($setup)) {
-            $io->warning("Directives file does not return a callable — skipped: {$file}");
-
-            return;
-        }
-
-        $setup($lexer);
     }
 
     /** @return string[] */

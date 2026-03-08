@@ -26,20 +26,6 @@ use Wik\Lexer\Lexer;
  *
  * Usage with lex.config.json in project root (options become optional):
  *   lex compile
- *
- * Custom directives
- * ─────────────────
- * Templates that use custom directives must be pre-registered before
- * compilation. Create lex.directives.php at the project root (or set
- * "directivesFile" in lex.config.json) returning a callable:
- *
- *   <?php
- *   use Wik\Lexer\Lexer;
- *   return static function (Lexer $lexer): void {
- *       $lexer->directive('money', fn($e) => "<?php echo number_format({$e}, 2); ?>");
- *   };
- *
- * This file is picked up automatically — no CLI flags needed.
  */
 #[AsCommand(name: 'compile', description: 'Compile .lex template files to PHP')]
 final class CompileCommand extends Command
@@ -111,9 +97,6 @@ final class CompileCommand extends Command
             $lexer->setProduction();
         }
 
-        // ── Apply custom directives from lex.directives.php (if any) ─────────
-        $this->applyDirectivesFile($lexer, $config, $io);
-
         $compiler  = $lexer->getCompiler();
         $compiled  = 0;
         $failed    = 0;
@@ -143,41 +126,6 @@ final class CompileCommand extends Command
         $io->success("Compiled {$compiled} template(s)" . ($failed > 0 ? ", {$failed} failed" : '') . '.');
 
         return $failed > 0 ? Command::FAILURE : Command::SUCCESS;
-    }
-
-    /**
-     * Load and apply the directives file to the given Lexer instance.
-     *
-     * Resolution order:
-     *   1. "directivesFile" field in lex.config.json
-     *   2. lex.directives.php at the project root (auto-discovery)
-     *
-     * The file must return callable(Lexer): void.
-     */
-    private function applyDirectivesFile(Lexer $lexer, ?LexConfig $config, SymfonyStyle $io): void
-    {
-        $file = $config?->directivesFile;
-
-        // No config → try auto-discover from cwd
-        if ($file === null) {
-            $fallback = rtrim((string) getcwd(), '/\\') . DIRECTORY_SEPARATOR . LexConfig::DIRECTIVES_FILE;
-            $file     = is_file($fallback) ? $fallback : null;
-        }
-
-        if ($file === null) {
-            return;
-        }
-
-        $setup = require $file;
-
-        if (!is_callable($setup)) {
-            $io->warning("Directives file does not return a callable — skipped: {$file}");
-
-            return;
-        }
-
-        $setup($lexer);
-        $io->note('Custom directives loaded from ' . $file);
     }
 
     /** @return string[] */
