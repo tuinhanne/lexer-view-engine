@@ -204,7 +204,7 @@ final class CompilerTest extends TestCase
         $hash   = md5($source);
         $this->compiler->compile($source, 'test.lex');
 
-        $this->assertFileExists($this->cacheDir . '/' . $hash . '.ast');
+        $this->assertFileExists($this->cacheDir . '/ast/' . $hash . '.ast');
     }
 
     public function testRecompileInvalidatesCache(): void

@@ -698,6 +698,11 @@ final class Lexer
      */
     private function isHtmlTag(string $name): bool
     {
+        // PascalCase names (first char uppercase) are always treated as components
+        if ($name !== '' && ctype_upper($name[0])) {
+            return false;
+        }
+
         return isset(self::HTML_TAGS[strtolower($name)]);
     }
 

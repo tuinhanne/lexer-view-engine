@@ -112,14 +112,6 @@ final class ComponentManager
      */
     public function startComponent(string $name, array $props = []): void
     {
-        $depth = $this->renderDepth[$name] ?? 0;
-
-        if ($depth >= self::MAX_DEPTH) {
-            throw TemplateRuntimeException::componentRecursionLimit($name, self::MAX_DEPTH);
-        }
-
-        $this->renderDepth[$name] = $depth + 1;
-
         $this->stack[] = [
             'name'         => $name,
             'props'        => $props,
@@ -185,15 +177,15 @@ final class ComponentManager
 
         $defaultSlot = ob_get_clean() ?: '';
         $frame       = array_pop($this->stack);
-        $name        = $frame['name'];
 
-        $this->renderDepth[$name] = max(0, ($this->renderDepth[$name] ?? 1) - 1);
-
-        return $this->renderComponent($name, $frame['props'], $frame['slots'], $defaultSlot);
+        return $this->renderComponent($frame['name'], $frame['props'], $frame['slots'], $defaultSlot);
     }
 
     /**
-     * Render a self-closing component (no slot content).
+     * Render a component (self-closing or from endComponent).
+     *
+     * All component renders — self-closing, slotted, and raw $__env calls —
+     * pass through here so the MAX_DEPTH recursion guard is always enforced.
      */
     public function renderComponent(
         string $name,
@@ -207,19 +199,31 @@ final class ComponentManager
             );
         }
 
-        $classProps = $this->resolveComponentClass($name, $props);
-        $viewPath   = $this->resolveComponentPath($name);
+        $depth = $this->renderDepth[$name] ?? 0;
 
-        $data = array_merge(
-            $props,
-            $classProps,
-            [
-                'slot'  => $defaultSlot,
-                'slots' => $namedSlots,
-            ],
-        );
+        if ($depth >= self::MAX_DEPTH) {
+            throw TemplateRuntimeException::componentRecursionLimit($name, self::MAX_DEPTH);
+        }
 
-        return ($this->viewRenderer)($viewPath, $data);
+        $this->renderDepth[$name] = $depth + 1;
+
+        try {
+            $classProps = $this->resolveComponentClass($name, $props);
+            $viewPath   = $this->resolveComponentPath($name);
+
+            $data = array_merge(
+                $props,
+                $classProps,
+                [
+                    'slot'  => $defaultSlot,
+                    'slots' => $namedSlots,
+                ],
+            );
+
+            return ($this->viewRenderer)($viewPath, $data);
+        } finally {
+            $this->renderDepth[$name] = max(0, ($this->renderDepth[$name] ?? 1) - 1);
+        }
     }
 
     // -----------------------------------------------------------------------

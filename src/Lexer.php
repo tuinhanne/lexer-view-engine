@@ -52,6 +52,7 @@ final class Lexer
 
     private array $viewPaths          = [];
     private string $projectRoot       = '';
+    private ?string $cacheDir         = null;
     private bool $production          = false;
     private ?SandboxConfig $sandboxConfig = null;
     private ?EscaperInterface $escaper    = null;
@@ -120,6 +121,27 @@ final class Lexer
     {
         $this->viewPaths = $paths;
         $this->engine    = null; // invalidate cached engine
+
+        return $this;
+    }
+
+    /**
+     * Set an explicit cache directory (overrides the default .lexer/ location).
+     */
+    public function cache(string $dir): static
+    {
+        $this->cacheDir = $dir;
+        $this->engine   = null;
+
+        return $this;
+    }
+
+    /**
+     * Add a directory to search for component view files.
+     */
+    public function componentPath(string $path): static
+    {
+        $this->componentManager->addComponentPath($path);
 
         return $this;
     }
@@ -382,6 +404,10 @@ final class Lexer
      */
     private function resolveLexerDir(): string
     {
+        if ($this->cacheDir !== null) {
+            return $this->cacheDir;
+        }
+
         $root = $this->projectRoot ?: (string) getcwd();
 
         return rtrim($root, '/\\') . DIRECTORY_SEPARATOR . LexConfig::CACHE_DIR;
