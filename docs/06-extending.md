@@ -21,15 +21,9 @@ Lexer (entry point — fluent API + Lexer::fromConfig() factory)
  ├── Engine
  │    ├── ViewEngine       resolves, compiles, renders, handles layout chain
  │    └── Environment      runtime $__env in compiled templates
- ├── Runtime
- │    ├── SectionManager   ob-based section + push-stack capture
- │    └── ComponentManager named slots, component classes, recursion guard
- └── Console
-      ├── InitCommand      lex init — creates lex.config.json
-      ├── CompileCommand   lex compile
-      ├── ValidateCommand  lex validate
-      ├── BenchmarkCommand lex benchmark
-      └── CacheClearCommand lex cache:clear
+ └── Runtime
+      ├── SectionManager   ob-based section + push-stack capture
+      └── ComponentManager named slots, component classes, recursion guard
 ```
 
 ---
@@ -214,58 +208,6 @@ final class MyDirectiveTest extends TestCase
 
 ---
 
-## CLI Reference
-
-### `lex init`
-
-Creates `lex.config.json` in the project root (and `.vscode/settings.json`):
-
-```bash
-vendor/bin/lex init                 # interactive prompts
-vendor/bin/lex init --defaults      # use defaults, no prompts
-vendor/bin/lex init --force         # overwrite existing file
-vendor/bin/lex init --no-vscode     # skip .vscode/settings.json
-vendor/bin/lex init --dir=/path/to  # target a different directory
-```
-
-### `lex compile`
-
-Pre-compiles templates to PHP. Reads `lex.config.json` when no options are given:
-
-```bash
-# With config file (recommended)
-vendor/bin/lex compile
-vendor/bin/lex compile --production
-
-# Explicit options (override config)
-vendor/bin/lex compile views/home.lex --cache=storage/cache --production
-```
-
-### `lex validate`
-
-```bash
-vendor/bin/lex validate             # all viewPaths from config
-vendor/bin/lex validate --sandbox   # enforce sandbox rules
-vendor/bin/lex validate views/home.lex
-```
-
-### `lex benchmark`
-
-```bash
-vendor/bin/lex benchmark home                         # reads config
-vendor/bin/lex benchmark home --iterations=1000
-vendor/bin/lex benchmark home --data='{"name":"Alice"}'
-```
-
-### `lex cache:clear`
-
-```bash
-vendor/bin/lex cache:clear cache/views
-vendor/bin/lex cache:clear cache/views --index-only
-```
-
----
-
 ## Clearing the Cache Programmatically
 
 After modifying any of the following, clear the `cache/` directory to force recompilation:
@@ -274,11 +216,7 @@ After modifying any of the following, clear the `cache/` directory to force reco
 - Custom directive handlers
 - Any Node class's `compile()` method
 
-```bash
-vendor/bin/lex cache:clear cache/views
-```
-
-Or via PHP:
+Via PHP:
 
 ```php
 foreach (glob($cacheDir . '/*.{php,ast}', GLOB_BRACE) as $file) {
@@ -421,23 +359,10 @@ $lexer->setProduction(false);   // revert to dev mode
 In production mode:
 - A precompiled view index (`cache/index.php`) maps template paths to compiled paths.
 - On each request the index is checked first — **no source-file I/O whatsoever**.
-- Templates are **not recompiled** when the source changes; you must run
-  `lex compile --production` as part of every deployment to regenerate the index.
-- Use `lex cache:clear storage/cache` during deploys to force a full recompilation.
-
-### Deployment workflow
-
-```bash
-# 1. Compile all templates and build the index
-vendor/bin/lex compile --production
-
-# 2. (optional) clear stale cache before compile
-vendor/bin/lex cache:clear storage/cache/views
-vendor/bin/lex compile --production
-```
+- Templates are **not recompiled** when the source changes; compile templates as part of every deployment to regenerate the index.
 
 ```php
-// 3. In your application bootstrap
+// In your application bootstrap
 $lexer->setProduction();
 ```
 

@@ -13,11 +13,7 @@ composer require wik/lexer
 
 ## Quick Setup — with `lex.config.json` (recommended)
 
-Run `lex init` once in the project root. It creates `lex.config.json` interactively and optionally writes `.vscode/settings.json` for the LSP extension:
-
-```bash
-vendor/bin/lex init
-```
+Create `lex.config.json` in the project root:
 
 Example `lex.config.json`:
 
@@ -99,7 +95,7 @@ The same file is read by the [Lex LSP extension](../lex-language-server/) for co
 | `paths(array $dirs)` | Set the directories searched for `.lex` files |
 | `addPath(string $dir)` | Append one directory to the search path |
 | `extension(string $ext)` | Change the template file extension (default: `lex`) |
-| `setProduction(bool $v = true)` | Enable (`true`, default) or disable (`false`) production mode. In production, templates are never recompiled from source — run `lex compile` during deployment instead. |
+| `setProduction(bool $v = true)` | Enable (`true`, default) or disable (`false`) production mode. In production, templates are never recompiled from source — compile templates before deployment instead. |
 | `enableSandbox(?SandboxConfig $cfg)` | Enable sandbox mode |
 | `directive(string $name, callable $fn)` | Register a custom directive |
 | `component(string $name, string $file)` | Map a component tag to a view file |
@@ -114,7 +110,7 @@ The same file is read by the [Lex LSP extension](../lex-language-server/) for co
 
 ```
 my-project/
-├── lex.config.json         ← project config (created by `lex init`)
+├── lex.config.json         ← project config
 ├── composer.json
 ├── views/
 │   ├── layouts/

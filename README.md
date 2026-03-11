@@ -20,7 +20,6 @@ composer require wik/lexer
 - **Include system** — `#include`, `#includeIf`, `#includeWhen`, `#includeFirst`
 - **Sandbox mode** — expression whitelist, raw-echo control, 50+ always-blocked functions
 - **Custom directives** — register any PHP callable as a template directive
-- **CLI tooling** — init, compile, cache:clear, benchmark, validate
 - **Config file** — `lex.config.json` at the project root; `Lexer::fromConfig()` factory
 
 ---
@@ -31,7 +30,7 @@ composer require wik/lexer
 |---|---|
 | PHP | `^8.1` |
 | Extensions | `mbstring` (recommended), `igbinary` (optional, faster AST cache) |
-| Dev dependencies | `phpunit/phpunit`, `symfony/console` |
+| Dependencies | `phpunit/phpunit` |
 
 ---
 
@@ -47,11 +46,7 @@ composer require wik/lexer
 
 ### Option A — with `lex.config.json` (recommended)
 
-```bash
-vendor/bin/lex init
-```
-
-Creates `lex.config.json` in the project root:
+Create `lex.config.json` in the project root:
 
 ```json
 {
@@ -494,7 +489,6 @@ The compiled template cache is always placed at `{projectRoot}/.lexer/`:
 | `.lexer/compiled/index.php` | Precompiled view index (production mode) |
 | `.lexer/view_dependencies.json` | Dependency graph for cache invalidation |
 
-The CLI commands (`compile`, `validate`, `benchmark`) read this file automatically when no explicit options are given.
 The [Lex LSP extension](../lex-language-server/) also reads the same file to power IntelliSense.
 
 `LexConfig` walks up from the current working directory to find the file, so you can call `Lexer::fromConfig()` from anywhere inside the project without passing a path.
@@ -598,53 +592,6 @@ $loader->set('greeting', 'Hello, {{ $name }}!');
 
 ---
 
-## CLI
-
-### Setup
-
-```bash
-# Create lex.config.json
-vendor/bin/lex init
-
-# Non-interactive (use all defaults)
-vendor/bin/lex init --defaults
-
-# Specify a project directory other than cwd
-vendor/bin/lex init --dir=/path/to/project
-
-# Overwrite an existing lex.config.json
-vendor/bin/lex init --force
-```
-
-### Commands (with `lex.config.json` all options become optional)
-
-```bash
-# Precompile all viewPaths from config (deploy step)
-vendor/bin/lex compile
-
-# …or target a specific path / file
-vendor/bin/lex compile views/home.lex --production
-
-# Clear the compiled cache (.lexer/)
-vendor/bin/lex cache:clear
-
-# Clear only the precompiled index (keep compiled PHP files)
-vendor/bin/lex cache:clear --index-only
-
-# Validate all templates from config
-vendor/bin/lex validate
-
-# …or with sandbox rules
-vendor/bin/lex validate views/ --sandbox
-
-# Benchmark render performance
-vendor/bin/lex benchmark home --iterations=1000
-```
-
-When `lex.config.json` is present in the project root (or any parent directory), `compile`, `validate`, and `benchmark` automatically read `viewPaths` from it. Explicit CLI options always take precedence.
-
----
-
 ## Render a File Directly
 
 ```php
@@ -682,13 +629,8 @@ whether the source `.lex` file has changed and recompiles it automatically.
 No manual cache management is needed during development.
 
 **Production mode:** all source-file I/O is skipped. Templates are served
-directly from a precompiled index — zero recompilation per request. You must
-run `lex compile` during every deployment to keep compiled files up to date.
-
-```bash
-# During deployment — compile all templates and write the index
-vendor/bin/lex compile --production
-```
+directly from a precompiled index — zero recompilation per request. Templates
+must be compiled before deployment to keep compiled files up to date.
 
 ```php
 // In your application bootstrap
@@ -751,12 +693,7 @@ resolved and are silently skipped — only string literals are tracked.
 
 ### Cache clear
 
-`lex cache:clear` removes all compiled files, AST snapshots, and
-`view_dependencies.json`, forcing a clean slate on the next compile run:
-
-```bash
-vendor/bin/lex cache:clear
-```
+To clear the cache, delete the `.lexer/` directory or call `FileCache::flush()` — this removes all compiled files, AST snapshots, and `view_dependencies.json`, forcing a clean slate on the next compile run.
 
 ### Querying the graph (tooling / advanced use)
 
