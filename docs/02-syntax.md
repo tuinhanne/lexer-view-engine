@@ -1,9 +1,5 @@
 # Syntax Reference
 
-## Template file extension
-
-All template files use the `.lex` extension by default.
-
 ---
 
 ## 1. Echo — Output Variables

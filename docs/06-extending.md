@@ -305,8 +305,6 @@ $path = LexConfig::find('/path/to/project');   // string|null
 
 // Inspect loaded values
 $config->viewPaths;       // string[]
-$config->cache;           // string (absolute)
-$config->extension;       // string
 $config->production;      // bool
 $config->sandbox;         // bool
 $config->configFilePath;  // absolute path of the config file

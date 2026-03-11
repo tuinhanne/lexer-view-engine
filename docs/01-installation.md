@@ -20,7 +20,6 @@ Example `lex.config.json`:
 ```json
 {
   "viewPaths":  ["views", "resources/views"],
-  "extension":  "lex",
   "production": false,
   "sandbox":    false
 }
@@ -79,7 +78,6 @@ The config file is searched by **walking up** from the current working directory
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `viewPaths` | `string[]` | `["views","resources/views"]` | Directories scanned for `.lex` templates. Relative paths are resolved from the config file's directory. |
-| `extension` | `string` | `"lex"` | Template file extension (without the dot). |
 | `production` | `bool` | `false` | Enable production mode (precompiled index, skip source I/O). |
 | `sandbox` | `bool` | `false` | Enable secure sandbox mode. |
 
@@ -94,7 +92,6 @@ The same file is read by the [Lex LSP extension](../lex-language-server/) for co
 | `Lexer::fromConfig(string $dir = '')` | **Static factory** — load from `lex.config.json` |
 | `paths(array $dirs)` | Set the directories searched for `.lex` files |
 | `addPath(string $dir)` | Append one directory to the search path |
-| `extension(string $ext)` | Change the template file extension (default: `lex`) |
 | `setProduction(bool $v = true)` | Enable (`true`, default) or disable (`false`) production mode. In production, templates are never recompiled from source — compile templates before deployment instead. |
 | `enableSandbox(?SandboxConfig $cfg)` | Enable sandbox mode |
 | `directive(string $name, callable $fn)` | Register a custom directive |
