@@ -439,10 +439,16 @@ LEX);
         $html1 = $this->lexer->render('cached');
         $html2 = $this->lexer->render('cached');
 
-        $this->assertSame($html1, $html2);
+        // Strip the debug JSON payload (renderTime differs between renders)
+        $strip = static fn(string $h) => preg_replace(
+            '~\n?<script id="__lex_debug__"[^>]*>.*?</script>~s',
+            '',
+            $h,
+        );
+        $this->assertSame($strip($html1), $strip($html2));
 
-        // Verify the cache file was created
-        $cacheFiles = glob($this->cacheDir . '/*.php') ?: [];
+        // Verify the cache file was created (FileCache stores in baseDir/compiled/)
+        $cacheFiles = glob($this->cacheDir . '/compiled/*.php') ?: [];
         $this->assertNotEmpty($cacheFiles);
     }
 }

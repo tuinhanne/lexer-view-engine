@@ -19,7 +19,8 @@
       "Bash(grep -n \"CLI\\\\|cli\\\\|bin/lex\\\\|vendor/bin\\\\|Console\\\\|Command\\\\|lex init\\\\|lex compile\\\\|lex validate\\\\|lex cache\\\\|lex benchmark\" docs/*.md)",
       "Bash(grep -v '^\\\\.$')",
       "Bash(magick --version)",
-      "Bash(node -e \"require\\(''sharp''\\)\")"
+      "Bash(node -e \"require\\(''sharp''\\)\")",
+      "Bash(php vendor/bin/phpunit --testdox)"
     ]
   }
 }

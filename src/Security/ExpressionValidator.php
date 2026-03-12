@@ -92,6 +92,18 @@ final class ExpressionValidator
             }
         }
 
+        // In strict sandbox: block new keyword before function whitelist check
+        // so `new stdClass()` reports "object instantiation" not "function not allowed"
+        if ($this->config->allowedFunctions !== null) {
+            if (preg_match('/\bnew\s+[A-Z]/i', $stripped)) {
+                throw TemplateSyntaxException::sandboxViolation(
+                    'object instantiation (new) is not allowed',
+                    $templateFile,
+                    $line,
+                );
+            }
+        }
+
         // If a function whitelist is configured, validate all function calls
         if ($this->config->allowedFunctions !== null) {
             $calledFunctions = $this->extractFunctionCalls($stripped);
@@ -105,18 +117,6 @@ final class ExpressionValidator
                         $line,
                     );
                 }
-            }
-        }
-
-        // In strict sandbox: block new keyword and static method calls that
-        // could bypass function whitelisting
-        if ($this->config->allowedFunctions !== null) {
-            if (preg_match('/\bnew\s+[A-Z]/i', $stripped)) {
-                throw TemplateSyntaxException::sandboxViolation(
-                    'object instantiation (new) is not allowed',
-                    $templateFile,
-                    $line,
-                );
             }
         }
     }

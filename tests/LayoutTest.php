@@ -216,11 +216,11 @@ LEX);
 
     public function testThreeLevelInheritanceWorks(): void
     {
-        $this->writeView('layouts/root', '<root>#yield("main")</root>');
+        $this->writeView('layouts/root', '<div id="root">#yield("main")</div>');
         $this->writeView('layouts/mid', <<<'LEX'
 #extends('layouts.root')
 #section('main')
-<mid>#yield('content')</mid>
+<div id="mid">#yield('content')</div>
 #endsection
 LEX);
         $this->writeView('leaf', <<<'LEX'
@@ -229,8 +229,8 @@ LEX);
 LEX);
 
         $html = $this->lexer->render('leaf');
-        $this->assertStringContainsString('<root>', $html);
-        $this->assertStringContainsString('<mid>', $html);
+        $this->assertStringContainsString('id="root"', $html);
+        $this->assertStringContainsString('id="mid"', $html);
         $this->assertStringContainsString('leaf content', $html);
     }
 
