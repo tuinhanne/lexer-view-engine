@@ -108,6 +108,15 @@ final class Compiler
     // -----------------------------------------------------------------------
 
     /**
+     * Expose the underlying FileCache so external tooling (e.g. wik/lex-debug)
+     * can register debug hooks without coupling to internal implementation.
+     */
+    public function getCache(): FileCache
+    {
+        return $this->cache;
+    }
+
+    /**
      * Compile a template source string and return the path to the compiled PHP file.
      *
      * The compiled file can be safely include()'d at render time.

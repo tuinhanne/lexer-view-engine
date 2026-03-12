@@ -143,4 +143,29 @@ $this->app->singleton(Lexer::class, function () {
 });
 ```
 
+---
+
+## Chrome DevTools Extension (optional)
+
+Install the browser extension to inspect component trees, sections, cache hits,
+and Lex errors directly in Chrome DevTools.
+
+```
+chrome://extensions
+  → Enable "Developer mode"
+  → "Load unpacked"
+  → Select the lexer-extension/extension/ folder
+```
+
+No extra PHP setup is needed. In **development mode** (the default),
+`Lexer::render()` automatically injects a JSON debug payload into every HTML
+response that the extension reads.
+
+In **production mode** (`setProduction()`) the debugger is disabled and nothing
+is injected — zero overhead.
+
+See the [DevTools guide →](07-devtools.md) for full details.
+
+---
+
 Next: [Syntax Reference →](02-syntax.md)

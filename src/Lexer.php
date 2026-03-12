@@ -49,6 +49,7 @@ final class Lexer
     private SectionManager $sectionManager;
     private ComponentManager $componentManager;
     private ?ViewEngine $engine = null;
+    private ?\Wik\Lexer\Debug\LexDebugger $debugger = null;
 
     private array $viewPaths          = [];
     private string $projectRoot       = '';
@@ -237,6 +238,7 @@ final class Lexer
     {
         $this->production = $production;
         $this->engine     = null;
+        $this->debugger   = null; // invalidate — production never uses debugger
 
         return $this;
     }
@@ -286,6 +288,11 @@ final class Lexer
     /**
      * Render a named template and return the resulting HTML string.
      *
+     * In development mode (default), output is automatically wrapped by
+     * LexDebugger which injects the __lex_debug__ JSON payload for the
+     * Chrome DevTools extension.  In production mode (setProduction(true))
+     * the debugger is bypassed entirely — zero overhead.
+     *
      * @param  string               $name  Template name (dot notation supported)
      * @param  array<string, mixed> $data  Variables made available in the template
      *
@@ -294,11 +301,18 @@ final class Lexer
      */
     public function render(string $name, array $data = []): string
     {
+        if (!$this->production) {
+            return $this->getDebugger()->render($name, $data);
+        }
+
         return $this->getEngine()->render($name, $data);
     }
 
     /**
      * Render a template by its absolute file path and return HTML.
+     *
+     * Debug payload is not injected for file renders (used internally by
+     * components and layouts); the top-level render() call covers the full page.
      *
      * @param  array<string, mixed> $data
      */
@@ -328,6 +342,22 @@ final class Lexer
     }
 
     /**
+     * Return the ComponentManager (for debug hook registration via wik/lex-debug).
+     */
+    public function getComponentManager(): ComponentManager
+    {
+        return $this->componentManager;
+    }
+
+    /**
+     * Return the SectionManager (for debug hook registration via wik/lex-debug).
+     */
+    public function getSectionManager(): SectionManager
+    {
+        return $this->sectionManager;
+    }
+
+    /**
      * Return the ViewEngine (builds it if not yet constructed).
      */
     public function getEngine(): ViewEngine
@@ -342,6 +372,15 @@ final class Lexer
     // -----------------------------------------------------------------------
     // Internal factory
     // -----------------------------------------------------------------------
+
+    private function getDebugger(): \Wik\Lexer\Debug\LexDebugger
+    {
+        if ($this->debugger === null) {
+            $this->debugger = new \Wik\Lexer\Debug\LexDebugger($this);
+        }
+
+        return $this->debugger;
+    }
 
     private function buildEngine(): ViewEngine
     {

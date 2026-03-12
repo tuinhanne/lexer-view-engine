@@ -16,7 +16,10 @@
       "Bash(powershell.exe -Command \"Get-Command php -ErrorAction SilentlyContinue | Select-Object Source\")",
       "Bash(powershell.exe -Command \"Get-Command php,composer,phpunit 2>$null | Select-Object Name,Source | Format-Table -AutoSize\")",
       "Bash(powershell.exe -Command \"Get-Command php -ErrorAction SilentlyContinue | Select Source\")",
-      "Bash(grep -n \"CLI\\\\|cli\\\\|bin/lex\\\\|vendor/bin\\\\|Console\\\\|Command\\\\|lex init\\\\|lex compile\\\\|lex validate\\\\|lex cache\\\\|lex benchmark\" docs/*.md)"
+      "Bash(grep -n \"CLI\\\\|cli\\\\|bin/lex\\\\|vendor/bin\\\\|Console\\\\|Command\\\\|lex init\\\\|lex compile\\\\|lex validate\\\\|lex cache\\\\|lex benchmark\" docs/*.md)",
+      "Bash(grep -v '^\\\\.$')",
+      "Bash(magick --version)",
+      "Bash(node -e \"require\\(''sharp''\\)\")"
     ]
   }
 }

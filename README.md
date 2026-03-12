@@ -21,6 +21,7 @@ composer require wik/lexer
 - **Sandbox mode** — expression whitelist, raw-echo control, 50+ always-blocked functions
 - **Custom directives** — register any PHP callable as a template directive
 - **Config file** — `lex.config.json` at the project root; `Lexer::fromConfig()` factory
+- **Chrome DevTools extension** — component tree, section inspector, cache viewer, error overlay, hover inspector ([lex-devtools](../lexer-extension/))
 
 ---
 
@@ -441,6 +442,40 @@ For standalone PHP projects that need inline PHP logic:
 
 ---
 
+## Chrome DevTools Extension
+
+In **development mode** (default), every `render()` call automatically injects a
+JSON debug payload into the HTML response. Install the
+[Lex DevTools](../lexer-extension/) Chrome extension to inspect it.
+
+```
+chrome://extensions → Load unpacked → select lexer-extension/extension/
+```
+
+The DevTools panel provides:
+
+| Tab | What you see |
+|-----|-------------|
+| **Components** | Full component tree, props, slots, render times |
+| **Sections** | All `#section` / `#yield` pairs with content preview |
+| **Cache** | Hit/miss per template, compiled file paths |
+| **Network** | Lex render time per request via `X-Lex-*` headers |
+| **Timeline** | Gantt chart of component render times |
+
+The **Error Overlay** intercepts `TemplateSyntaxException` and similar errors
+and shows the file, line, column, and a source snippet with an
+"Open in VS Code" button.
+
+In **production mode** the debugger is **never activated** — zero overhead:
+
+```php
+$lexer->setProduction();   // disables LexDebugger automatically
+```
+
+See the [DevTools guide →](docs/07-devtools.md) for the full setup.
+
+---
+
 ## Custom Directives
 
 ```php
@@ -627,14 +662,17 @@ $lexer->setEscaper(new MarkdownEscaper());
 **Dev mode (default — production off):** on every `render()` call Lex checks
 whether the source `.lex` file has changed and recompiles it automatically.
 No manual cache management is needed during development.
+`LexDebugger` is also active in dev mode — it injects the `__lex_debug__` payload
+that powers the Chrome DevTools extension.
 
 **Production mode:** all source-file I/O is skipped. Templates are served
 directly from a precompiled index — zero recompilation per request. Templates
 must be compiled before deployment to keep compiled files up to date.
+`LexDebugger` is disabled automatically — no debug data is ever injected.
 
 ```php
 // In your application bootstrap
-$lexer->setProduction();          // enable
+$lexer->setProduction();          // enable — also disables LexDebugger
 // $lexer->setProduction(false);  // revert to dev mode if needed
 ```
 

@@ -67,6 +67,22 @@ final class ComponentManager
 
     private ?\Closure $viewRenderer = null;
 
+    /** Optional debug output wrapper: fn(name, file, renderMs, html): string */
+    private ?\Closure $outputWrapper = null;
+
+    /**
+     * Debug hooks: event name → callable[].
+     *
+     * Supported events:
+     *   onComponentStart(string $name, string $file, array $props): void
+     *   onComponentEnd(string $name, string $file, float $renderMs):  void
+     *
+     * Zero overhead when empty — hooks are only used by wik/lex-debug.
+     *
+     * @var array<string, callable[]>
+     */
+    private array $hooks = [];
+
     // -----------------------------------------------------------------------
     // Configuration
     // -----------------------------------------------------------------------
@@ -74,6 +90,16 @@ final class ComponentManager
     public function setViewRenderer(\Closure $renderer): void
     {
         $this->viewRenderer = $renderer;
+    }
+
+    public function setOutputWrapper(\Closure $wrapper): void
+    {
+        $this->outputWrapper = $wrapper;
+    }
+
+    public function addHook(string $event, callable $fn): void
+    {
+        $this->hooks[$event][] = $fn;
     }
 
     public function addComponentPath(string $path): void
@@ -220,9 +246,32 @@ final class ComponentManager
                 ],
             );
 
-            return ($this->viewRenderer)($viewPath, $data);
+            $this->fireHook('onComponentStart', $name, $viewPath, $props);
+
+            $startMs = microtime(true);
+            $output  = ($this->viewRenderer)($viewPath, $data);
+            $renderMs = round((microtime(true) - $startMs) * 1000, 2);
+
+            $this->fireHook('onComponentEnd', $name, $viewPath, $renderMs);
+
+            if ($this->outputWrapper !== null) {
+                $output = ($this->outputWrapper)($name, $viewPath, $renderMs, $output);
+            }
+
+            return $output;
         } finally {
             $this->renderDepth[$name] = max(0, ($this->renderDepth[$name] ?? 1) - 1);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Hook dispatch
+    // -----------------------------------------------------------------------
+
+    private function fireHook(string $event, mixed ...$args): void
+    {
+        foreach ($this->hooks[$event] ?? [] as $fn) {
+            $fn(...$args);
         }
     }
 

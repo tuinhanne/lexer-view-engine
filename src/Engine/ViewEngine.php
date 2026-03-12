@@ -65,6 +65,19 @@ final class ViewEngine
     }
 
     // -----------------------------------------------------------------------
+    // Tooling access
+    // -----------------------------------------------------------------------
+
+    /**
+     * Expose the compiler so external tooling (wik/lex-debug) can register
+     * hooks on the FileCache without creating a second compiler instance.
+     */
+    public function getCompiler(): Compiler
+    {
+        return $this->compiler;
+    }
+
+    // -----------------------------------------------------------------------
     // Rendering API
     // -----------------------------------------------------------------------
 
@@ -123,6 +136,11 @@ final class ViewEngine
         // addToLayoutChain() throws TemplateRuntimeException on a duplicate path.
         $env->addToLayoutChain($filePath);
 
+        // Save and restore so nested component renders (inside a #section block)
+        // don't overwrite the parent template's currentFile in SectionManager.
+        $previousFile = $this->sectionManager->getCurrentFile();
+        $this->sectionManager->setCurrentFile($filePath);
+
         $source       = file_get_contents($filePath);
         $cacheKey     = $this->computeCacheKey($filePath);
         $compiledPath = $this->compiler->compile($source, $filePath, $cacheKey);
@@ -133,10 +151,12 @@ final class ViewEngine
             $this->includeCompiled($compiledPath, $data, $env);
         } catch (\Throwable $e) {
             ob_end_clean();
+            $this->sectionManager->setCurrentFile($previousFile);
             throw $e;
         }
 
         $output = ob_get_clean() ?: '';
+        $this->sectionManager->setCurrentFile($previousFile);
 
         // Layout inheritance: render the parent layout with sections already captured
         if ($env->hasLayout()) {

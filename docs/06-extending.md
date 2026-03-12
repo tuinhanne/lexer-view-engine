@@ -366,6 +366,58 @@ $lexer->setProduction();
 
 ---
 
+---
+
+## Debug Hook API
+
+Three runtime classes expose an `addHook(string $event, callable $fn)` method
+for external tooling (the built-in `LexDebugger` uses the same API):
+
+### ComponentManager
+
+```php
+$lexer->getComponentManager()->addHook(
+    'onComponentStart',
+    function (string $name, string $file, array $props): void {
+        // fires before every component render
+    }
+);
+
+$lexer->getComponentManager()->addHook(
+    'onComponentEnd',
+    function (string $name, string $file, float $renderMs): void {
+        // fires after every component render; $renderMs is wall-clock ms
+    }
+);
+```
+
+### SectionManager
+
+```php
+$lexer->getSectionManager()->addHook(
+    'onSectionEnd',
+    function (string $name, string $content): void {
+        // fires after every #section / #endsection pair is captured
+    }
+);
+```
+
+### FileCache
+
+```php
+$cache = $lexer->getEngine()->getCompiler()->getCache();
+
+$cache->addHook('onCacheHit',  function (string $key, string $compiledPath): void {});
+$cache->addHook('onCacheMiss', function (string $key): void {});
+```
+
+> **Note:** Build the engine (`$lexer->getEngine()`) before registering cache hooks
+> to ensure you're attaching to the same `FileCache` instance used at render time.
+
+Hook arrays are empty by default — there is **no overhead** when no hooks are registered.
+
+---
+
 ## Coding Standards for Contributors
 
 - `declare(strict_types=1)` in every file

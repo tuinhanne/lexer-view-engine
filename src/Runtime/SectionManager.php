@@ -40,6 +40,46 @@ final class SectionManager
     /** @var string[] Stack of push names currently being captured */
     private array $pushStack = [];
 
+    /** Current template file being executed — set by ViewEngine. */
+    private string $currentFile = '';
+
+    /**
+     * Debug hooks.
+     *
+     * Supported events:
+     *   onSectionEnd(string $name, string $content, string $file): void
+     *   onSectionYield(string $name, string $file):                  void
+     *
+     * @var array<string, callable[]>
+     */
+    private array $hooks = [];
+
+    // -----------------------------------------------------------------------
+    // Hook API
+    // -----------------------------------------------------------------------
+
+    public function setCurrentFile(string $file): void
+    {
+        $this->currentFile = $file;
+    }
+
+    public function getCurrentFile(): string
+    {
+        return $this->currentFile;
+    }
+
+    public function addHook(string $event, callable $fn): void
+    {
+        $this->hooks[$event][] = $fn;
+    }
+
+    private function fireHook(string $event, mixed ...$args): void
+    {
+        foreach ($this->hooks[$event] ?? [] as $fn) {
+            $fn(...$args);
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Section capture API
     // -----------------------------------------------------------------------
@@ -85,6 +125,8 @@ final class SectionManager
 
         // Child definitions override parent definitions
         $this->sections[$name] = $content === false ? '' : $content;
+
+        $this->fireHook('onSectionEnd', $name, $this->sections[$name], $this->currentFile);
     }
 
     // -----------------------------------------------------------------------
@@ -96,6 +138,7 @@ final class SectionManager
      */
     public function yieldSection(string $name, string $default = ''): string
     {
+        $this->fireHook('onSectionYield', $name, $this->currentFile);
         return $this->sections[$name] ?? $default;
     }
 

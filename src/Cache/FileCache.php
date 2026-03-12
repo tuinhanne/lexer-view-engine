@@ -29,11 +29,38 @@ final class FileCache implements CacheInterface
     private array $index = [];
 
     /**
+     * Debug hooks.
+     *
+     * Supported events:
+     *   onCacheHit(string $key, string $compiledPath): void
+     *   onCacheMiss(string $key):                      void
+     *
+     * @var array<string, callable[]>
+     */
+    private array $hooks = [];
+
+    /**
      * @param string $baseDir  Absolute path to the .lexer/ root directory.
      */
     public function __construct(
         private readonly string $baseDir,
     ) {
+    }
+
+    // -----------------------------------------------------------------------
+    // Hook API
+    // -----------------------------------------------------------------------
+
+    public function addHook(string $event, callable $fn): void
+    {
+        $this->hooks[$event][] = $fn;
+    }
+
+    private function fireHook(string $event, mixed ...$args): void
+    {
+        foreach ($this->hooks[$event] ?? [] as $fn) {
+            $fn(...$args);
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -49,12 +76,19 @@ final class FileCache implements CacheInterface
     {
         $path = $this->compiledPath($key);
 
-        return file_exists($path) ? $path : null;
+        if (file_exists($path)) {
+            $this->fireHook('onCacheHit', $key, $path);
+
+            return $path;
+        }
+
+        return null;
     }
 
     public function put(string $key, string $compiledContent): string
     {
         $this->ensureCompiledDir();
+        $this->fireHook('onCacheMiss', $key);
 
         $path = $this->compiledPath($key);
 
