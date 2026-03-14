@@ -31,7 +31,7 @@ composer require wik/lexer
 |---|---|
 | PHP | `^8.1` |
 | Extensions | `mbstring` (recommended), `igbinary` (optional, faster AST cache) |
-| Dependencies | `phpunit/phpunit` |
+| Dependencies | `phpunit/phpunit`, `psr/http-server-middleware`|
 
 ---
 
